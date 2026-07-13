@@ -13,7 +13,7 @@ const stylisticConfigs = tseslint.configs.stylisticTypeChecked.map((config) => (
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'coverage/**', 'node_modules/**'],
+    ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'src/generated/**'],
   },
 
   eslint.configs.recommended,

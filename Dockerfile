@@ -11,6 +11,8 @@ WORKDIR /app
 
 ENV NODE_ENV=development
 
+RUN apk add --no-cache openssl
+
 COPY package.json package-lock.json ./
 
 # -----------------------------------------------------------------------------
@@ -50,6 +52,8 @@ FROM node:${NODE_VERSION} AS production
 WORKDIR /app
 
 ENV NODE_ENV=production
+
+RUN apk add --no-cache openssl
 
 COPY --from=build --chown=node:node /app/package.json ./package.json
 COPY --from=build --chown=node:node /app/package-lock.json ./package-lock.json

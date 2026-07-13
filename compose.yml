@@ -49,7 +49,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "fetch('http://127.0.0.1:3000/api/v1/health').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));",
+          "fetch('http://127.0.0.1:3000/api/v1/health/ready').then((response) => { if (!response.ok) process.exit(1); }).catch(() => process.exit(1));",
         ]
       interval: 10s
       timeout: 5s

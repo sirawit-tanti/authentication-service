@@ -1,5 +1,6 @@
-import { buildApplication } from '@/app.js';
 import type { FastifyInstance } from 'fastify';
+
+import { buildApplication } from '../../src/app.js';
 
 describe('GET /api/v1/health', () => {
   let application: FastifyInstance;
@@ -7,6 +8,7 @@ describe('GET /api/v1/health', () => {
   beforeAll(async () => {
     application = await buildApplication({
       logger: false,
+      registerDatabase: false,
     });
 
     await application.ready();
@@ -27,6 +29,7 @@ describe('GET /api/v1/health', () => {
     expect(response.json()).toMatchObject({
       success: true,
       message: 'Service is healthy',
+
       data: {
         service: 'authentication-service',
         status: 'healthy',
@@ -45,6 +48,7 @@ describe('GET /api/v1/health', () => {
     expect(response.json()).toEqual({
       success: false,
       message: 'Route GET /api/v1/unknown was not found',
+
       errors: [
         {
           code: 'ROUTE_NOT_FOUND',

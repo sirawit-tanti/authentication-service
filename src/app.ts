@@ -1,11 +1,13 @@
 import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions } from 'fastify';
 
+import { databasePlugin } from './infrastructure/database/database.plugin.js';
 import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
 
 export interface BuildApplicationOptions {
   logger?: FastifyServerOptions['logger'];
+  registerDatabase?: boolean;
 }
 
 export async function buildApplication(
@@ -22,8 +24,15 @@ export async function buildApplication(
           'request.headers.authorization',
           'request.headers.cookie',
           'password',
+          'passwordHash',
+          'token',
+          'tokenHash',
           'accessToken',
           'refreshToken',
+          'clientSecret',
+          'clientSecretHash',
+          'apiKey',
+          'keyHash',
         ],
         censor: '[REDACTED]',
       },
@@ -38,6 +47,10 @@ export async function buildApplication(
   });
 
   await application.register(errorHandler);
+
+  if (options.registerDatabase !== false) {
+    await application.register(databasePlugin);
+  }
 
   await application.register(apiV1Routes, {
     prefix: '/api/v1',
