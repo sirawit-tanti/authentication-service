@@ -9,6 +9,33 @@ const successResponseProperties = {
   },
 } as const;
 
+const livenessDataSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['service', 'status', 'timestamp', 'uptime'],
+
+  properties: {
+    service: {
+      type: 'string',
+    },
+
+    status: {
+      type: 'string',
+      enum: ['healthy'],
+    },
+
+    timestamp: {
+      type: 'string',
+      format: 'date-time',
+    },
+
+    uptime: {
+      type: 'number',
+      minimum: 0,
+    },
+  },
+} as const;
+
 export const healthResponseSchema = {
   type: 'object',
   additionalProperties: false,
@@ -16,33 +43,7 @@ export const healthResponseSchema = {
 
   properties: {
     ...successResponseProperties,
-
-    data: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['service', 'status', 'timestamp', 'uptime'],
-
-      properties: {
-        service: {
-          type: 'string',
-        },
-
-        status: {
-          type: 'string',
-          enum: ['healthy'],
-        },
-
-        timestamp: {
-          type: 'string',
-          format: 'date-time',
-        },
-
-        uptime: {
-          type: 'number',
-          minimum: 0,
-        },
-      },
-    },
+    data: livenessDataSchema,
   },
 } as const;
 
@@ -53,33 +54,7 @@ export const livenessResponseSchema = {
 
   properties: {
     ...successResponseProperties,
-
-    data: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['service', 'status', 'timestamp', 'uptime'],
-
-      properties: {
-        service: {
-          type: 'string',
-        },
-
-        status: {
-          type: 'string',
-          enum: ['healthy'],
-        },
-
-        timestamp: {
-          type: 'string',
-          format: 'date-time',
-        },
-
-        uptime: {
-          type: 'number',
-          minimum: 0,
-        },
-      },
-    },
+    data: livenessDataSchema,
   },
 } as const;
 
@@ -109,10 +84,15 @@ export const readinessResponseSchema = {
         dependencies: {
           type: 'object',
           additionalProperties: false,
-          required: ['database'],
+          required: ['database', 'redis'],
 
           properties: {
             database: {
+              type: 'string',
+              enum: ['connected'],
+            },
+
+            redis: {
               type: 'string',
               enum: ['connected'],
             },

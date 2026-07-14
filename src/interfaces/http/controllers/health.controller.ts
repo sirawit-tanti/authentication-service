@@ -13,9 +13,12 @@ interface LivenessData {
 interface ReadinessData {
   service: string;
   status: 'ready';
+
   dependencies: {
     database: 'connected';
+    redis: 'connected';
   };
+
   timestamp: string;
 }
 
@@ -46,14 +49,23 @@ export async function getReadinessStatus(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
-  await request.server.prisma.$queryRaw`SELECT 1`;
+  const { prisma, redis } = request.server.infrastructure;
+
+  const [, redisPingResponse] = await Promise.all([prisma.$queryRaw`SELECT 1`, redis.ping()]);
+
+  if (redisPingResponse !== 'PONG') {
+    throw new Error(`Unexpected Redis PING response: ${redisPingResponse}`);
+  }
 
   const readinessData: ReadinessData = {
     service: env.APP_NAME,
     status: 'ready',
+
     dependencies: {
       database: 'connected',
+      redis: 'connected',
     },
+
     timestamp: new Date().toISOString(),
   };
 

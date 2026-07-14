@@ -51,7 +51,7 @@ export function healthRoutes(fastify: FastifyInstance): void {
       schema: {
         tags: ['Health'],
         summary: 'Check service readiness',
-        description: 'Returns whether the service and PostgreSQL dependency are ready',
+        description: 'Returns whether PostgreSQL and Redis dependencies are ready',
 
         response: {
           200: readinessResponseSchema,

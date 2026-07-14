@@ -8,7 +8,7 @@ describe('GET /api/v1/health', () => {
   beforeAll(async () => {
     application = await buildApplication({
       logger: false,
-      registerDatabase: false,
+      registerInfrastructure: false,
     });
 
     await application.ready();

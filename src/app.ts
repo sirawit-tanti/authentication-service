@@ -1,13 +1,19 @@
 import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions } from 'fastify';
 
-import { databasePlugin } from './infrastructure/database/database.plugin.js';
+import {
+  createInfrastructureContainer,
+  type InfrastructureContainer,
+} from './infrastructure/container/infrastructure-container.js';
+
+import { infrastructurePlugin } from './infrastructure/container/infrastructure.plugin.js';
 import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
 
 export interface BuildApplicationOptions {
   logger?: FastifyServerOptions['logger'];
-  registerDatabase?: boolean;
+  registerInfrastructure?: boolean;
+  infrastructure?: InfrastructureContainer;
 }
 
 export async function buildApplication(
@@ -48,8 +54,12 @@ export async function buildApplication(
 
   await application.register(errorHandler);
 
-  if (options.registerDatabase !== false) {
-    await application.register(databasePlugin);
+  if (options.registerInfrastructure !== false) {
+    const infrastructure = options.infrastructure ?? createInfrastructureContainer();
+
+    await application.register(infrastructurePlugin, {
+      container: infrastructure,
+    });
   }
 
   await application.register(apiV1Routes, {
