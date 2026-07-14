@@ -273,7 +273,7 @@ async function main(): Promise<void> {
     await seedApplication(applicationSeed);
   }
 
-  console.info(`Seeded ${applications.length} applications successfully`);
+  console.info(`Seeded ${String(applications.length)} applications successfully`);
 }
 
 try {

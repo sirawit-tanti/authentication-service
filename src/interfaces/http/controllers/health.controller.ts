@@ -51,11 +51,7 @@ export async function getReadinessStatus(
 ): Promise<void> {
   const { prisma, redis } = request.server.infrastructure;
 
-  const [, redisPingResponse] = await Promise.all([prisma.$queryRaw`SELECT 1`, redis.ping()]);
-
-  if (redisPingResponse !== 'PONG') {
-    throw new Error(`Unexpected Redis PING response: ${redisPingResponse}`);
-  }
+  await Promise.all([prisma.$queryRaw`SELECT 1`, redis.ping()]);
 
   const readinessData: ReadinessData = {
     service: env.APP_NAME,

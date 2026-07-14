@@ -119,12 +119,7 @@ async function infrastructurePluginImplementation(
     fastify.log.info('PostgreSQL connection established');
 
     await container.redis.connect();
-
-    const pingResponse = await container.redis.ping();
-
-    if (pingResponse !== 'PONG') {
-      throw new Error(`Unexpected Redis Ping response: ${pingResponse}`);
-    }
+    await container.redis.ping();
   } catch (error: unknown) {
     await Promise.allSettled([container.prisma.$disconnect(), closeRedisConnection(container)]);
 

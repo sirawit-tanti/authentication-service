@@ -1,5 +1,5 @@
 import { env } from '@/shared/config/env.js';
-import Redis, { type RedisOptions } from 'ioredis';
+import { Redis, type RedisOptions } from 'ioredis';
 
 function calculateRetryDelay(attempNumber: number): number | null {
   const maximumRetryAttempts = 10;
