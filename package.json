@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:database": "cross-env RUN_DATABASE_TESTS=true vitest run tests/integration/repositories",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate",
@@ -44,6 +45,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "bcrypt": "^6.0.0",
     "dotenv": "^16.0.0",
     "fastify": "^5.0.0",
     "fastify-plugin": "^5.0.0",
@@ -53,9 +55,11 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@types/bcrypt": "^6.0.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.20.0",
     "@vitest/coverage-v8": "^3.0.0",
+    "cross-env": "^10.1.0",
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",
     "prisma": "^7.8.0",

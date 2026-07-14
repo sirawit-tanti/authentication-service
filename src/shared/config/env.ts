@@ -40,6 +40,8 @@ const environmentSchema = z.object({
   REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(10_000),
 
   REDIS_MAX_RETRIES_PER_REQUEST: z.coerce.number().int().min(0).max(10).default(3),
+
+  BCRYPT_COST: z.coerce.number().int().min(10).max(15).default(12),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);

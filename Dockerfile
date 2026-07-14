@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 
-ARG NODE_VERSION=22-alpine
+ARG NODE_VERSION=22-bookworm-slim
 
 # -----------------------------------------------------------------------------
-# Base stage
+# Base
 # -----------------------------------------------------------------------------
 FROM node:${NODE_VERSION} AS base
 
@@ -11,12 +11,10 @@ WORKDIR /app
 
 ENV NODE_ENV=development
 
-RUN apk add --no-cache openssl
-
 COPY package.json package-lock.json ./
 
 # -----------------------------------------------------------------------------
-# Development stage
+# Development
 # -----------------------------------------------------------------------------
 FROM base AS development
 
@@ -31,7 +29,7 @@ EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
 # -----------------------------------------------------------------------------
-# Build stage
+# Build
 # -----------------------------------------------------------------------------
 FROM base AS build
 
@@ -41,19 +39,16 @@ COPY . .
 
 RUN npm run build
 
-# Remove development dependencies after the build is complete.
 RUN npm prune --omit=dev
 
 # -----------------------------------------------------------------------------
-# Production stage
+# Production
 # -----------------------------------------------------------------------------
 FROM node:${NODE_VERSION} AS production
 
 WORKDIR /app
 
 ENV NODE_ENV=production
-
-RUN apk add --no-cache openssl
 
 COPY --from=build --chown=node:node /app/package.json ./package.json
 COPY --from=build --chown=node:node /app/package-lock.json ./package-lock.json

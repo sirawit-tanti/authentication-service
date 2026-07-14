@@ -22,9 +22,8 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"],
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [
