@@ -42,6 +42,8 @@ const environmentSchema = z.object({
   REDIS_MAX_RETRIES_PER_REQUEST: z.coerce.number().int().min(0).max(10).default(3),
 
   BCRYPT_COST: z.coerce.number().int().min(10).max(15).default(12),
+
+  EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(1_440).default(60),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);
