@@ -16,7 +16,6 @@ const environmentSchema = z.object({
   DATABASE_URL: z
     .string()
     .trim()
-    .url()
     .refine((url) => url.startsWith('postgresql://') || url.startsWith('postgres://'), {
       message: 'DATABASE_URL must use the postgresql:// or postgres:// protocol',
     }),
@@ -24,10 +23,23 @@ const environmentSchema = z.object({
   REDIS_URL: z
     .string()
     .trim()
-    .url()
     .refine((url) => url.startsWith('redis://') || url.startsWith('rediss://'), {
       message: 'REDIS_URL must use the redis:// or rediss:// protocol',
     }),
+
+  REDIS_KEY_PREFIX: z
+    .string()
+    .trim()
+    .min(1)
+    .regex(/^[a-zA-Z0-9:_-]+$/, {
+      message:
+        'REDIS_KEY_PREFIX may contain only letters, numbers, colons, underscores, and hyphens',
+    })
+    .default('auth:'),
+
+  REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(10_000),
+
+  REDIS_MAX_RETRIES_PER_REQUEST: z.coerce.number().int().min(0).max(10).default(3),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);
