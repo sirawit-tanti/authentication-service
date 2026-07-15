@@ -3,6 +3,7 @@ import fastifyPlugin from 'fastify-plugin';
 
 import type { InfrastructureContainer } from './infrastructure-container.js';
 import { env } from '@/shared/config/env.js';
+import { isCloseableResource } from './closeable-resource.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -129,10 +130,16 @@ async function infrastructurePluginImplementation(
   fastify.decorate('infrastructure', container);
 
   fastify.addHook('onClose', async () => {
-    const closeResults = await Promise.allSettled([
+    const closeOperations: Promise<unknown>[] = [
       container.prisma.$disconnect(),
       closeRedisConnection(container),
-    ]);
+    ];
+
+    if (isCloseableResource(container.emailQueue)) {
+      closeOperations.unshift(container.emailQueue.close());
+    }
+
+    const closeResults = await Promise.allSettled(closeOperations);
 
     for (const result of closeResults) {
       if (result.status === 'rejected') {

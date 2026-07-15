@@ -65,6 +65,60 @@ services:
     networks:
       - authentication_network
 
+  email-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+
+    container_name: authentication-service-email-worker
+
+    init: true
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      NODE_ENV: development
+
+      DATABASE_URL: >-
+        postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+
+      REDIS_URL: >-
+        redis://:${REDIS_PASSWORD}@redis:6379/0
+
+      BULLMQ_PREFIX: ${BULLMQ_PREFIX:-auth-queue}
+      EMAIL_QUEUE_NAME: ${EMAIL_QUEUE_NAME:-authentication-email}
+      EMAIL_WORKER_CONCURRENCY: ${EMAIL_WORKER_CONCURRENCY:-5}
+      EMAIL_JOB_ATTEMPTS: ${EMAIL_JOB_ATTEMPTS:-5}
+      EMAIL_JOB_BACKOFF_MS: ${EMAIL_JOB_BACKOFF_MS:-5000}
+
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-development}
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-no-reply@example.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Authentication Service}
+      EMAIL_VERIFICATION_BASE_URL: ${EMAIL_VERIFICATION_BASE_URL:-http://localhost:3000/verify-email}
+
+    command:
+      - npm
+      - run
+      - dev:worker:email
+
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+
+    depends_on:
+      redis:
+        condition: service_healthy
+        restart: true
+
+    stop_grace_period: 30s
+
+    networks:
+      - authentication_network
+
   postgres:
     image: postgres:17-alpine
 

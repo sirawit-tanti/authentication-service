@@ -71,14 +71,14 @@ const environmentSchema = z.object({
 
   EMAIL_PROVIDER: z.enum(['development']).default('development'),
 
-  EMAIL_FROM_ADDRESS: z.string().trim().email().default('no-reply@example.com'),
+  EMAIL_FROM_ADDRESS: z.string().trim().pipe(z.email()).default('no-reply@example.com'),
 
   EMAIL_FROM_NAME: z.string().trim().min(1).max(100).default('Authentication Service'),
 
   EMAIL_VERIFICATION_BASE_URL: z
     .string()
     .trim()
-    .url()
+    .pipe(z.url())
     .default('http://localhost:3000/verify-email'),
 });
 

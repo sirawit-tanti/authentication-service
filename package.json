@@ -33,7 +33,9 @@
     "docker:up:detached": "docker compose up --build --detach",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs --follow app",
-    "docker:check": "docker compose exec app npm run check"
+    "docker:check": "docker compose exec app npm run check",
+    "dev:worker:email": "tsx watch src/workers/email.worker.ts",
+    "start:worker:email": "node dist/workers/email.worker.js"
   },
   "keywords": [
     "authentication",
