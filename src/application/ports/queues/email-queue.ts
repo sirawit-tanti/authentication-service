@@ -12,7 +12,7 @@ export interface EnqueuePasswordResetInput extends SendPasswordResetJobData {
 }
 
 export interface EmailQueue {
-  enqueeuEmailVerification(input: EnqueueEmailVerificationInput): Promise<void>;
+  enqueueEmailVerification(input: EnqueueEmailVerificationInput): Promise<void>;
 
   enqueuePasswordReset(input: EnqueuePasswordResetInput): Promise<void>;
 }

@@ -48,6 +48,13 @@ enum OAuthProvider {
   @@map("oauth_provider")
 }
 
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED
+}
+
 model User {
   id String @id @default(uuid()) @db.Uuid
 
@@ -442,4 +449,25 @@ model OAuthAccount {
   @@unique([provider, providerAccountId], map: "oauth_accounts_provider_account_id_key")
   @@index([userId], map: "oauth_accounts_user_id_idx")
   @@map("oauth_accounts")
+}
+
+model OutboxMessage {
+  id          String       @id @db.Uuid
+  topic       String       @db.VarChar(100)
+  eventType   String       @map("event_type") @db.VarChar(100)
+  aggregateId String?      @map("aggregate_id") @db.Uuid
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  availableAt DateTime     @default(now()) @map("available_at")
+  lockedAt    DateTime?    @map("locked_at")
+  lockedBy    String?      @map("locked_by") @db.VarChar(150)
+  publishedAt DateTime?    @map("published_at")
+  lastError   String?      @map("last_error") @db.Text
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([status, availableAt, createdAt])
+  @@index([lockedAt])
+  @@map("outbox_messages")
 }

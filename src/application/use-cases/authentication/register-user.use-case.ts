@@ -1,4 +1,9 @@
 import { EmailAlreadyExistsError } from '@/application/errors/email-already-exists.error.js';
+import {
+  EMAIL_JOB_NAMES,
+  type SendEmailVerificationJobData,
+} from '@/application/jobs/email-job.js';
+import { OUTBOX_TOPICS } from '@/application/outbox/outbox-message.js';
 import type { PasswordHasher } from '@/application/ports/crypto/password-hasher.js';
 import type { SecureTokenService } from '@/application/ports/crypto/secure-token-service.js';
 import type { UserRegistrationRepository } from '@/application/ports/repositories/user-registration.repository.js';
@@ -6,8 +11,8 @@ import type { Clock } from '@/application/ports/system/clock.js';
 import type { IdGenerator } from '@/application/ports/system/id-generator.js';
 import type { PasswordPolicy } from '@/domain/authentication/services/password-policy.js';
 import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
-import { User } from '@/domain/users/entities/user.entity.js';
 import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { User } from '@/domain/users/entities/user.entity.js';
 
 export interface RegisterUserCommand {
   email: string;
@@ -18,11 +23,6 @@ export interface RegisterUserResult {
   userId: string;
   email: string;
   status: 'PENDING_VERIFICATION';
-
-  verification: {
-    token: string;
-    expiresAt: Date;
-  };
 }
 
 export interface RegisterUserUseCaseDependencies {
@@ -101,21 +101,35 @@ export class RegisterUserUseCase {
       now,
     });
 
-    const verificationToken = this.secureTokenService.generate();
+    const rawVerificationToken = this.secureTokenService.generate();
 
-    const verificationTokenHash = this.secureTokenService.hash(verificationToken);
+    const tokenExpiresAt = new Date(now.getTime() + this.verificationTokenTtlMilliseconds);
 
-    const verificationTokenExpiresAt = new Date(
-      now.getTime() + this.verificationTokenTtlMilliseconds,
-    );
+    const emailJobPayload = {
+      version: 1,
+      userId: user.getId(),
+      email: user.getEmail().value,
+      verificationToken: rawVerificationToken,
+      expiresAt: tokenExpiresAt.toISOString(),
+    } satisfies SendEmailVerificationJobData;
 
     await this.registrationRepository.createRegistration({
       user,
 
       verificationToken: {
         id: this.idGenerator.generate(),
-        tokenHash: verificationTokenHash,
-        expiresAt: verificationTokenExpiresAt,
+        tokenHash: this.secureTokenService.hash(rawVerificationToken),
+        expiresAt: tokenExpiresAt,
+        createdAt: now,
+      },
+
+      outboxMessage: {
+        id: this.idGenerator.generate(),
+        topic: OUTBOX_TOPICS.EMAIL,
+        eventType: EMAIL_JOB_NAMES.SEND_EMAIL_VERIFICATION,
+        aggregateId: user.getId(),
+        payload: emailJobPayload,
+        availableAt: now,
         createdAt: now,
       },
     });
@@ -124,11 +138,6 @@ export class RegisterUserUseCase {
       userId: user.getId(),
       email: user.getEmail().value,
       status: 'PENDING_VERIFICATION',
-
-      verification: {
-        token: verificationToken,
-        expiresAt: verificationTokenExpiresAt,
-      },
     };
   }
 }

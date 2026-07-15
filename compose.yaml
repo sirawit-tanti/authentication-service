@@ -119,6 +119,66 @@ services:
     networks:
       - authentication_network
 
+  outbox-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+
+    container_name: authentication-service-outbox-worker
+
+    init: true
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+      DATABASE_URL: >-
+        postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+
+      REDIS_URL: >-
+        redis://:${REDIS_PASSWORD}@redis:6379/0
+
+      REDIS_CONNECT_TIMEOUT_MS: ${REDIS_CONNECT_TIMEOUT_MS:-10000}
+      REDIS_MAX_RETRIES_PER_REQUEST: ${REDIS_MAX_RETRIES_PER_REQUEST:-3}
+
+      BULLMQ_PREFIX: ${BULLMQ_PREFIX:-auth-queue}
+      EMAIL_QUEUE_NAME: ${EMAIL_QUEUE_NAME:-authentication-email}
+      EMAIL_JOB_ATTEMPTS: ${EMAIL_JOB_ATTEMPTS:-5}
+      EMAIL_JOB_BACKOFF_MS: ${EMAIL_JOB_BACKOFF_MS:-5000}
+
+      OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-1000}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-20}
+      OUTBOX_LOCK_TIMEOUT_MS: ${OUTBOX_LOCK_TIMEOUT_MS:-60000}
+      OUTBOX_MAX_ATTEMPTS: ${OUTBOX_MAX_ATTEMPTS:-10}
+
+    command:
+      - npm
+      - run
+      - dev:worker:outbox
+
+    volumes:
+      - .:/app
+      - app_node_modules:/app/node_modules
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+        restart: true
+
+      redis:
+        condition: service_healthy
+        restart: true
+
+    stop_grace_period: 30s
+
+    networks:
+      - authentication_network
+
   postgres:
     image: postgres:17-alpine
 

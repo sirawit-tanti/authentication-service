@@ -53,3 +53,13 @@ export const OAuthProvider = {
 } as const
 
 export type OAuthProvider = (typeof OAuthProvider)[keyof typeof OAuthProvider]
+
+
+export const OutboxStatus = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  PUBLISHED: 'PUBLISHED',
+  FAILED: 'FAILED'
+} as const
+
+export type OutboxStatus = (typeof OutboxStatus)[keyof typeof OutboxStatus]

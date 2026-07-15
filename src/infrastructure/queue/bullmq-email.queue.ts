@@ -41,7 +41,7 @@ export class BullMqEmailQueue implements EmailQueue {
     );
   }
 
-  public async enqueeuEmailVerification(input: EnqueueEmailVerificationInput): Promise<void> {
+  public async enqueueEmailVerification(input: EnqueueEmailVerificationInput): Promise<void> {
     const { jobId, ...jobData } = input;
 
     await this.queue.add(

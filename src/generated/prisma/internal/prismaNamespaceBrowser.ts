@@ -67,7 +67,8 @@ export const ModelName = {
   AuditLog: 'AuditLog',
   ApiKey: 'ApiKey',
   OAuthClient: 'OAuthClient',
-  OAuthAccount: 'OAuthAccount'
+  OAuthAccount: 'OAuthAccount',
+  OutboxMessage: 'OutboxMessage'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -347,6 +348,26 @@ export const OAuthAccountScalarFieldEnum = {
 export type OAuthAccountScalarFieldEnum = (typeof OAuthAccountScalarFieldEnum)[keyof typeof OAuthAccountScalarFieldEnum]
 
 
+export const OutboxMessageScalarFieldEnum = {
+  id: 'id',
+  topic: 'topic',
+  eventType: 'eventType',
+  aggregateId: 'aggregateId',
+  payload: 'payload',
+  status: 'status',
+  attempts: 'attempts',
+  availableAt: 'availableAt',
+  lockedAt: 'lockedAt',
+  lockedBy: 'lockedBy',
+  publishedAt: 'publishedAt',
+  lastError: 'lastError',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OutboxMessageScalarFieldEnum = (typeof OutboxMessageScalarFieldEnum)[keyof typeof OutboxMessageScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -361,6 +382,13 @@ export const NullableJsonNullValueInput = {
 } as const
 
 export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {

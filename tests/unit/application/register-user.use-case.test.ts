@@ -99,11 +99,6 @@ describe('RegisterUserUseCase', () => {
       userId: 'generated-id-1',
       email: 'Sirawit@Example.com',
       status: 'PENDING_VERIFICATION',
-
-      verification: {
-        token: 'verification-token',
-        expiresAt: new Date('2026-07-14T01:00:00.000Z'),
-      },
     });
 
     const registration = repository.createdRegistration;
@@ -118,6 +113,24 @@ describe('RegisterUserUseCase', () => {
       id: 'generated-id-2',
       tokenHash: 'hashed:verification-token',
       expiresAt: new Date('2026-07-14T01:00:00.000Z'),
+      createdAt: new Date('2026-07-14T00:00:00.000Z'),
+    });
+
+    expect(registration?.outboxMessage).toEqual({
+      id: 'generated-id-3',
+      topic: 'EMAIL',
+      eventType: 'send-email-verification',
+      aggregateId: 'generated-id-1',
+
+      payload: {
+        version: 1,
+        userId: 'generated-id-1',
+        email: 'Sirawit@Example.com',
+        verificationToken: 'verification-token',
+        expiresAt: '2026-07-14T01:00:00.000Z',
+      },
+
+      availableAt: new Date('2026-07-14T00:00:00.000Z'),
       createdAt: new Date('2026-07-14T00:00:00.000Z'),
     });
   });

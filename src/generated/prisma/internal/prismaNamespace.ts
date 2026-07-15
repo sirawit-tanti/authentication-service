@@ -400,7 +400,8 @@ export const ModelName = {
   AuditLog: 'AuditLog',
   ApiKey: 'ApiKey',
   OAuthClient: 'OAuthClient',
-  OAuthAccount: 'OAuthAccount'
+  OAuthAccount: 'OAuthAccount',
+  OutboxMessage: 'OutboxMessage'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -416,7 +417,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "userProfile" | "application" | "role" | "permission" | "userRole" | "rolePermission" | "device" | "session" | "refreshToken" | "emailVerificationToken" | "passwordResetToken" | "tokenBlacklist" | "auditLog" | "apiKey" | "oAuthClient" | "oAuthAccount"
+    modelProps: "user" | "userProfile" | "application" | "role" | "permission" | "userRole" | "rolePermission" | "device" | "session" | "refreshToken" | "emailVerificationToken" | "passwordResetToken" | "tokenBlacklist" | "auditLog" | "apiKey" | "oAuthClient" | "oAuthAccount" | "outboxMessage"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1678,6 +1679,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    OutboxMessage: {
+      payload: Prisma.$OutboxMessagePayload<ExtArgs>
+      fields: Prisma.OutboxMessageFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OutboxMessageFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OutboxMessageFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload>
+        }
+        findFirst: {
+          args: Prisma.OutboxMessageFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OutboxMessageFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload>
+        }
+        findMany: {
+          args: Prisma.OutboxMessageFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload>[]
+        }
+        create: {
+          args: Prisma.OutboxMessageCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload>
+        }
+        createMany: {
+          args: Prisma.OutboxMessageCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OutboxMessageCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload>[]
+        }
+        delete: {
+          args: Prisma.OutboxMessageDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload>
+        }
+        update: {
+          args: Prisma.OutboxMessageUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload>
+        }
+        deleteMany: {
+          args: Prisma.OutboxMessageDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OutboxMessageUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OutboxMessageUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload>[]
+        }
+        upsert: {
+          args: Prisma.OutboxMessageUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OutboxMessagePayload>
+        }
+        aggregate: {
+          args: Prisma.OutboxMessageAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOutboxMessage>
+        }
+        groupBy: {
+          args: Prisma.OutboxMessageGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OutboxMessageGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OutboxMessageCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OutboxMessageCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1978,6 +2053,26 @@ export const OAuthAccountScalarFieldEnum = {
 export type OAuthAccountScalarFieldEnum = (typeof OAuthAccountScalarFieldEnum)[keyof typeof OAuthAccountScalarFieldEnum]
 
 
+export const OutboxMessageScalarFieldEnum = {
+  id: 'id',
+  topic: 'topic',
+  eventType: 'eventType',
+  aggregateId: 'aggregateId',
+  payload: 'payload',
+  status: 'status',
+  attempts: 'attempts',
+  availableAt: 'availableAt',
+  lockedAt: 'lockedAt',
+  lockedBy: 'lockedBy',
+  publishedAt: 'publishedAt',
+  lastError: 'lastError',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OutboxMessageScalarFieldEnum = (typeof OutboxMessageScalarFieldEnum)[keyof typeof OutboxMessageScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -1992,6 +2087,13 @@ export const NullableJsonNullValueInput = {
 } as const
 
 export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
+
+
+export const JsonNullValueInput = {
+  JsonNull: JsonNull
+} as const
+
+export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
 
 
 export const QueryMode = {
@@ -2159,6 +2261,20 @@ export type ListEnumOAuthProviderFieldRefInput<$PrismaModel> = FieldRefInputType
 
 
 /**
+ * Reference to a field of type 'OutboxStatus'
+ */
+export type EnumOutboxStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OutboxStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'OutboxStatus[]'
+ */
+export type ListEnumOutboxStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OutboxStatus[]'>
+    
+
+
+/**
  * Reference to a field of type 'Float'
  */
 export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
@@ -2298,6 +2414,7 @@ export type GlobalOmitConfig = {
   apiKey?: Prisma.ApiKeyOmit
   oAuthClient?: Prisma.OAuthClientOmit
   oAuthAccount?: Prisma.OAuthAccountOmit
+  outboxMessage?: Prisma.OutboxMessageOmit
 }
 
 /* Types for Logging */

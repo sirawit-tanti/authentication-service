@@ -126,3 +126,8 @@ export type OAuthClient = Prisma.OAuthClientModel
  * 
  */
 export type OAuthAccount = Prisma.OAuthAccountModel
+/**
+ * Model OutboxMessage
+ * 
+ */
+export type OutboxMessage = Prisma.OutboxMessageModel

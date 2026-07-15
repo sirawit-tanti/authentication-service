@@ -1,3 +1,4 @@
+import type { CreateEmailOutboxMessageInput } from '@/application/outbox/outbox-message.js';
 import type { User } from '@/domain/users/entities/user.entity.js';
 
 export interface EmailVerificationTokenData {
@@ -10,6 +11,7 @@ export interface EmailVerificationTokenData {
 export interface CreateUserRegistrationInput {
   user: User;
   verificationToken: EmailVerificationTokenData;
+  outboxMessage: CreateEmailOutboxMessageInput;
 }
 
 export interface UserRegistrationRepository {

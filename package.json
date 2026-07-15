@@ -35,7 +35,9 @@
     "docker:logs": "docker compose logs --follow app",
     "docker:check": "docker compose exec app npm run check",
     "dev:worker:email": "tsx watch src/workers/email.worker.ts",
-    "start:worker:email": "node dist/workers/email.worker.js"
+    "start:worker:email": "node dist/workers/email.worker.js",
+    "dev:worker:outbox": "tsx watch src/workers/outbox.worker.ts",
+    "start:worker:outbox": "node dist/workers/outbox.worker.js"
   },
   "keywords": [
     "authentication",

@@ -80,6 +80,19 @@ const environmentSchema = z.object({
     .trim()
     .pipe(z.url())
     .default('http://localhost:3000/verify-email'),
+
+  OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().max(60_000).default(1_000),
+
+  OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(100).default(20),
+
+  OUTBOX_LOCK_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(15 * 60 * 1_000)
+    .default(60_000),
+
+  OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().max(100).default(10),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);
