@@ -157,5 +157,5 @@ async function infrastructurePluginImplementation(
 }
 
 export const infrastructurePlugin = fastifyPlugin(infrastructurePluginImplementation, {
-  name: 'infrastructure',
+  name: 'infrastructure-plugin',
 });

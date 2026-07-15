@@ -5,7 +5,7 @@ import { buildApplication } from '../../src/app.js';
 describe('GET /api/v1/health', () => {
   let application: FastifyInstance;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     application = await buildApplication({
       logger: false,
       registerInfrastructure: false,
@@ -14,7 +14,7 @@ describe('GET /api/v1/health', () => {
     await application.ready();
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await application.close();
   });
 
@@ -28,13 +28,29 @@ describe('GET /api/v1/health', () => {
 
     expect(response.json()).toMatchObject({
       success: true,
-      message: 'Service is healthy',
 
       data: {
-        service: 'authentication-service',
-        status: 'healthy',
+        status: 'ok',
+
+        dependencies: {
+          postgresql: {
+            status: 'not_checked',
+          },
+
+          redis: {
+            status: 'not_checked',
+          },
+        },
       },
     });
+
+    expect(
+      response.json<{
+        data: {
+          timestamp: string;
+        };
+      }>().data.timestamp,
+    ).toEqual(expect.any(String));
   });
 
   it('returns the standard error response for an unknown route', async () => {
@@ -47,14 +63,11 @@ describe('GET /api/v1/health', () => {
 
     expect(response.json()).toEqual({
       success: false,
-      message: 'Route GET /api/v1/unknown was not found',
 
-      errors: [
-        {
-          code: 'ROUTE_NOT_FOUND',
-          message: 'Route GET /api/v1/unknown was not found',
-        },
-      ],
+      error: {
+        code: 'ROUTE_NOT_FOUND',
+        message: 'Route GET /api/v1/unknown was not found',
+      },
     });
   });
 });

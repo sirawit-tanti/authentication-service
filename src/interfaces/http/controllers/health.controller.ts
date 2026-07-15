@@ -1,69 +1,84 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
-import { env } from '@/shared/config/env.js';
 import { createSuccessResponse } from '@/shared/http/api-response.js';
 
-interface LivenessData {
-  service: string;
-  status: 'healthy';
-  timestamp: string;
-  uptime: number;
+interface HealthDependencyStatus {
+  status: 'connected' | 'not_checked';
 }
 
-interface ReadinessData {
-  service: string;
-  status: 'ready';
+interface HealthResponseData {
+  status: 'ok';
+  timestamp: string;
 
   dependencies: {
-    database: 'connected';
-    redis: 'connected';
-  };
-
-  timestamp: string;
-}
-
-function createLivenessData(): LivenessData {
-  return {
-    service: env.APP_NAME,
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
+    postgresql: HealthDependencyStatus;
+    redis: HealthDependencyStatus;
   };
 }
 
-export async function getHealthStatus(
-  _request: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> {
-  await reply.status(200).send(createSuccessResponse('Service is healthy', createLivenessData()));
+interface FastifyServerWithOptionalInfrastructure {
+  infrastructure?: {
+    prisma: {
+      $queryRaw: (query: TemplateStringsArray) => Promise<unknown>;
+    };
+
+    redis: {
+      ping(): Promise<string>;
+    };
+  };
 }
 
-export async function getLivenessStatus(
-  _request: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> {
-  await reply.status(200).send(createSuccessResponse('Service is alive', createLivenessData()));
+function getOptionalInfrastructure(
+  request: FastifyRequest,
+): FastifyServerWithOptionalInfrastructure['infrastructure'] {
+  const server = request.server as FastifyServerWithOptionalInfrastructure;
+
+  return server.infrastructure;
 }
 
-export async function getReadinessStatus(
+export async function healthController(
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
-  const { prisma, redis } = request.server.infrastructure;
+  const infrastructure = getOptionalInfrastructure(request);
 
-  await Promise.all([prisma.$queryRaw`SELECT 1`, redis.ping()]);
+  if (infrastructure === undefined) {
+    const response: HealthResponseData = {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
 
-  const readinessData: ReadinessData = {
-    service: env.APP_NAME,
-    status: 'ready',
+      dependencies: {
+        postgresql: {
+          status: 'not_checked',
+        },
+
+        redis: {
+          status: 'not_checked',
+        },
+      },
+    };
+
+    await reply.status(200).send(createSuccessResponse(response));
+
+    return;
+  }
+
+  await Promise.all([infrastructure.prisma.$queryRaw`SELECT 1`, infrastructure.redis.ping()]);
+
+  const response: HealthResponseData = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
 
     dependencies: {
-      database: 'connected',
-      redis: 'connected',
-    },
+      postgresql: {
+        status: 'connected',
+      },
 
-    timestamp: new Date().toISOString(),
+      redis: {
+        status: 'connected',
+      },
+    },
   };
 
-  await reply.status(200).send(createSuccessResponse('Service is ready', readinessData));
+  await reply.status(200).send(createSuccessResponse(response));
 }

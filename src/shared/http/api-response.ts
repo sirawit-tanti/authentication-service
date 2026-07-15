@@ -1,6 +1,5 @@
-export interface SuccessResponse<TData> {
+export interface ApiSuccessResponse<TData> {
   success: true;
-  message: string;
   data: TData;
 }
 
@@ -10,20 +9,46 @@ export interface ApiErrorDetail {
   message: string;
 }
 
-export interface ErrorResponse {
+export interface ApiErrorResponse {
   success: false;
-  message: string;
-  errors: ApiErrorDetail[];
+
+  error: {
+    code: string;
+    message: string;
+    details?: ApiErrorDetail[];
+  };
 }
 
-export function createSuccessResponse<TData>(message: string, data: TData): SuccessResponse<TData> {
+export function createSuccessResponse<TData>(data: TData): ApiSuccessResponse<TData> {
   return {
     success: true,
-    message,
     data,
   };
 }
 
-export function createErrorResponse(message: string, errors: ApiErrorDetail[] = []): ErrorResponse {
-  return { success: false, message, errors };
+export function createErrorResponse(
+  code: string,
+  message: string,
+  details?: ApiErrorDetail[],
+): ApiErrorResponse {
+  if (details === undefined || details.length === 0) {
+    return {
+      success: false,
+
+      error: {
+        code,
+        message,
+      },
+    };
+  }
+
+  return {
+    success: false,
+
+    error: {
+      code,
+      message,
+      details,
+    },
+  };
 }

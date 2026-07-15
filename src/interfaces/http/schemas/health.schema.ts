@@ -1,107 +1,69 @@
-const successResponseProperties = {
-  success: {
-    type: 'boolean',
-    enum: [true],
-  },
+export const healthRouteSchema = {
+  description: 'Return the application and infrastructure health status',
 
-  message: {
-    type: 'string',
-  },
-} as const;
+  tags: ['Health'],
 
-const livenessDataSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['service', 'status', 'timestamp', 'uptime'],
-
-  properties: {
-    service: {
-      type: 'string',
-    },
-
-    status: {
-      type: 'string',
-      enum: ['healthy'],
-    },
-
-    timestamp: {
-      type: 'string',
-      format: 'date-time',
-    },
-
-    uptime: {
-      type: 'number',
-      minimum: 0,
-    },
-  },
-} as const;
-
-export const healthResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['success', 'message', 'data'],
-
-  properties: {
-    ...successResponseProperties,
-    data: livenessDataSchema,
-  },
-} as const;
-
-export const livenessResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['success', 'message', 'data'],
-
-  properties: {
-    ...successResponseProperties,
-    data: livenessDataSchema,
-  },
-} as const;
-
-export const readinessResponseSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['success', 'message', 'data'],
-
-  properties: {
-    ...successResponseProperties,
-
-    data: {
+  response: {
+    200: {
       type: 'object',
       additionalProperties: false,
-      required: ['service', 'status', 'dependencies', 'timestamp'],
+      required: ['success', 'data'],
 
       properties: {
-        service: {
-          type: 'string',
+        success: {
+          type: 'boolean',
+          enum: [true],
         },
 
-        status: {
-          type: 'string',
-          enum: ['ready'],
-        },
-
-        dependencies: {
+        data: {
           type: 'object',
           additionalProperties: false,
-          required: ['database', 'redis'],
+          required: ['status', 'timestamp', 'dependencies'],
 
           properties: {
-            database: {
+            status: {
               type: 'string',
-              enum: ['connected'],
+              enum: ['ok'],
             },
 
-            redis: {
+            timestamp: {
               type: 'string',
-              enum: ['connected'],
+            },
+
+            dependencies: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['postgresql', 'redis'],
+
+              properties: {
+                postgresql: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['status'],
+
+                  properties: {
+                    status: {
+                      type: 'string',
+                      enum: ['connected', 'not_checked'],
+                    },
+                  },
+                },
+
+                redis: {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['status'],
+
+                  properties: {
+                    status: {
+                      type: 'string',
+                      enum: ['connected', 'not_checked'],
+                    },
+                  },
+                },
+              },
             },
           },
-        },
-
-        timestamp: {
-          type: 'string',
-          format: 'date-time',
         },
       },
     },

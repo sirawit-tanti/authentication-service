@@ -4,8 +4,8 @@ import {
   createInfrastructureContainer,
   type InfrastructureContainer,
 } from './infrastructure/container/infrastructure-container.js';
-
 import { infrastructurePlugin } from './infrastructure/container/infrastructure.plugin.js';
+import { authenticationPlugin } from './interfaces/http/modules/authentication/authentication.plugin.js';
 import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
@@ -29,10 +29,14 @@ export async function buildApplication(
           'req.headers.cookie',
           'request.headers.authorization',
           'request.headers.cookie',
+          'req.body.password',
+          'request.body.password',
           'password',
           'passwordHash',
           'token',
           'tokenHash',
+          'verificationToken',
+          'resetToken',
           'accessToken',
           'refreshToken',
           'clientSecret',
@@ -60,6 +64,8 @@ export async function buildApplication(
     await application.register(infrastructurePlugin, {
       container: infrastructure,
     });
+
+    await application.register(authenticationPlugin);
   }
 
   await application.register(apiV1Routes, {

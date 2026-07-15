@@ -1,100 +1,102 @@
-import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyError, FastifyPluginCallback } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 
-import { AppError } from './app-error.js';
-import { createErrorResponse } from '../http/api-response.js';
+import { createErrorResponse, type ApiErrorDetail } from '../http/api-response.js';
 
-function handleAppError(error: AppError, reply: FastifyReply): void {
-  void reply.status(error.statusCode).send(
-    createErrorResponse(
-      error.message,
-      error.errors.length > 0
-        ? error.errors
-        : [
-            {
-              code: error.code,
-              message: error.message,
-            },
-          ],
-    ),
-  );
+interface FastifyValidationIssue {
+  instancePath?: string;
+  schemaPath?: string;
+  keyword?: string;
+  message?: string;
+  params?: Record<string, unknown>;
 }
 
-function handleFastifyError(error: FastifyError, reply: FastifyReply): void {
-  const statusCode = error.statusCode ?? 500;
-
-  void reply.status(statusCode).send(
-    createErrorResponse(error.message, [
-      {
-        code: error.code,
-        message: error.message,
-      },
-    ]),
-  );
+interface ErrorWithStatusCode extends Error {
+  statusCode?: number;
+  code?: string;
+  validation?: FastifyValidationIssue[];
 }
 
-function errorHandlerPlugin(fastify: FastifyInstance): void {
-  fastify.setNotFoundHandler((request, reply) => {
+function hasValidationIssues(error: ErrorWithStatusCode): error is ErrorWithStatusCode & {
+  validation: FastifyValidationIssue[];
+} {
+  return Array.isArray(error.validation) && error.validation.length > 0;
+}
+
+function mapValidationDetails(validation: FastifyValidationIssue[]): ApiErrorDetail[] {
+  return validation.map((issue) => {
+    const field = issue.instancePath?.replace(/^/, '').replaceAll('/', '.');
+
+    const code = (issue.keyword ?? 'INVALID_VALUE').toUpperCase();
+
+    const message = issue.message ?? 'Request value is invalid';
+
+    if (field === undefined || field.length === 0) {
+      return {
+        code,
+        message,
+      };
+    }
+
+    return {
+      code,
+      field,
+      message,
+    };
+  });
+}
+
+const errorHandlerImplementation: FastifyPluginCallback = (fastify, _options, done): void => {
+  fastify.setNotFoundHandler(async (request, reply): Promise<void> => {
     const message = `Route ${request.method} ${request.url} was not found`;
 
-    void reply.status(404).send(
-      createErrorResponse(message, [
-        {
-          code: 'ROUTE_NOT_FOUND',
-          message,
-        },
-      ]),
-    );
+    await reply.status(404).send(createErrorResponse('ROUTE_NOT_FOUND', message));
   });
 
-  fastify.setErrorHandler((error: FastifyError, request: FastifyRequest, reply: FastifyReply) => {
-    if (error instanceof AppError) {
-      request.log.warn(
-        {
-          errorCode: error.code,
-          statusCode: error.statusCode,
-          error,
-        },
-        error.message,
-      );
+  fastify.setErrorHandler(async (error: FastifyError, request, reply): Promise<void> => {
+    const applicationError = error as ErrorWithStatusCode;
 
-      handleAppError(error, reply);
+    if (hasValidationIssues(applicationError)) {
+      await reply
+        .status(400)
+        .send(
+          createErrorResponse(
+            'INVALID_REQUEST',
+            'Request validation failed',
+            mapValidationDetails(applicationError.validation),
+          ),
+        );
+
       return;
     }
 
-    if (error.statusCode !== undefined && error.statusCode < 500) {
-      request.log.warn(
-        {
-          errorCode: error.code,
-          statusCode: error.statusCode,
-          error,
-        },
-        error.message,
-      );
+    const statusCode = applicationError.statusCode;
 
-      handleFastifyError(error, reply);
+    if (statusCode !== undefined && statusCode >= 400 && statusCode < 500) {
+      await reply
+        .status(statusCode)
+        .send(
+          createErrorResponse(applicationError.code ?? 'REQUEST_ERROR', applicationError.message),
+        );
+
       return;
     }
 
     request.log.error(
       {
         error,
-        requestId: request.id,
       },
       'Unhandled application error',
     );
 
-    void reply.status(500).send(
-      createErrorResponse('An unexpected error occurred', [
-        {
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'The server could not process the request',
-        },
-      ]),
-    );
+    await reply
+      .status(500)
+      .send(createErrorResponse('INTERNAL_SERVER_ERROR', 'An unexpected error occurred'));
   });
-}
 
-export const errorHandler = fastifyPlugin(errorHandlerPlugin, {
+  done();
+};
+
+export const errorHandler = fastifyPlugin(errorHandlerImplementation, {
   name: 'error-handler',
 });
