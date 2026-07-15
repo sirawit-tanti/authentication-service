@@ -1,14 +1,17 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 
-import { EmailAlreadyExistsError } from '@/application/errors/email-already-exists.error.js';
+import { EmailAlreadyExistsError } from '../../../src/application/errors/email-already-exists.error.js';
+import type { VerifyEmailResult } from '../../../src/application/ports/repositories/email-verification.repository.js';
 import type {
   RegisterUserCommand,
   RegisterUserResult,
-} from '@/application/use-cases/authentication/register-user.use-case.js';
+} from '../../../src/application/use-cases/authentication/register-user.use-case.js';
+import type { VerifyEmailCommand } from '../../../src/application/use-cases/authentication/verify-email.use-case.js';
 import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
-import type { RegisterUserExecutor } from '@/interfaces/http/modules/authentication/register.controller.js';
-import { authenticationRoutes } from '@/interfaces/http/modules/authentication/authentication.routes.js';
-import { errorHandler } from '@/shared/errors/error-handler.js';
+import type { RegisterUserExecutor } from '../../../src/interfaces/http/modules/authentication/register.controller.js';
+import { authenticationRoutes } from '../../../src/interfaces/http/modules/authentication/authentication.routes.js';
+import type { VerifyEmailExecutor } from '../../../src/interfaces/http/modules/authentication/verify-email.controller.js';
+import { errorHandler } from '../../../src/shared/errors/error-handler.js';
 
 class FakeRegisterUserUseCase implements RegisterUserExecutor {
   public command: RegisterUserCommand | null = null;
@@ -32,6 +35,18 @@ class FakeRegisterUserUseCase implements RegisterUserExecutor {
   }
 }
 
+class FakeVerifyEmailUseCase implements VerifyEmailExecutor {
+  public execute(command: VerifyEmailCommand): Promise<VerifyEmailResult> {
+    void command;
+
+    return Promise.resolve({
+      userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
+      email: 'sirawit@example.com',
+      status: 'ACTIVE',
+    });
+  }
+}
+
 describe('POST /v1/auth/register', () => {
   let application: FastifyInstance;
   let registerUserUseCase: FakeRegisterUserUseCase;
@@ -48,6 +63,7 @@ describe('POST /v1/auth/register', () => {
     await application.register(authenticationRoutes, {
       prefix: '/v1/auth',
       registerUserUseCase,
+      verifyEmailUseCase: new FakeVerifyEmailUseCase(),
     });
 
     await application.ready();
