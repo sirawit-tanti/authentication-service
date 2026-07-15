@@ -12,6 +12,21 @@ import type { RegisterUserExecutor } from '../../../src/interfaces/http/modules/
 import { authenticationRoutes } from '../../../src/interfaces/http/modules/authentication/authentication.routes.js';
 import type { VerifyEmailExecutor } from '../../../src/interfaces/http/modules/authentication/verify-email.controller.js';
 import { errorHandler } from '../../../src/shared/errors/error-handler.js';
+import type {
+  ResendEmailVerificationCommand,
+  ResendEmailVerificationResult,
+} from '../../../src/application/use-cases/authentication/resend-email-verification.use-case.js';
+import type { ResendVerificationExecutor } from '../../../src/interfaces/http/modules/authentication/resend-verification.controller.js';
+
+class FakeResendVerificationUseCase implements ResendVerificationExecutor {
+  public execute(command: ResendEmailVerificationCommand): Promise<ResendEmailVerificationResult> {
+    void command;
+
+    return Promise.resolve({
+      accepted: true,
+    });
+  }
+}
 
 class FakeRegisterUserUseCase implements RegisterUserExecutor {
   public command: RegisterUserCommand | null = null;
@@ -64,6 +79,7 @@ describe('POST /v1/auth/register', () => {
       prefix: '/v1/auth',
       registerUserUseCase,
       verifyEmailUseCase: new FakeVerifyEmailUseCase(),
+      resendVerificationUseCase: new FakeResendVerificationUseCase(),
     });
 
     await application.ready();

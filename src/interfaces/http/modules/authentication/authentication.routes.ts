@@ -3,15 +3,20 @@ import type { FastifyPluginCallback } from 'fastify';
 import type { RegisterUserExecutor } from './register.controller.js';
 import { createRegisterController } from './register.controller.js';
 import { registerRouteSchema, type RegisterRequestBody } from './register.schema.js';
+import type { ResendVerificationExecutor } from './resend-verification.controller.js';
+import { createResendVerificationController } from './resend-verification.controller.js';
 import {
-  createVerifyEmailController,
-  type VerifyEmailExecutor,
-} from './verify-email.controller.js';
+  resendVerificationRouteSchema,
+  type ResendVerificationRequestBody,
+} from './resend-verification.schema.js';
+import type { VerifyEmailExecutor } from './verify-email.controller.js';
+import { createVerifyEmailController } from './verify-email.controller.js';
 import { verifyEmailRouteSchema, type VerifyEmailRequestBody } from './verify-email.schema.js';
 
 export interface AuthenticationRoutesOptions {
   registerUserUseCase: RegisterUserExecutor;
   verifyEmailUseCase: VerifyEmailExecutor;
+  resendVerificationUseCase: ResendVerificationExecutor;
 }
 
 interface RegisterRouteRequest {
@@ -20,6 +25,10 @@ interface RegisterRouteRequest {
 
 interface VerifyEmailRouteRequest {
   Body: VerifyEmailRequestBody;
+}
+
+interface ResendVerificationRouteRequest {
+  Body: ResendVerificationRequestBody;
 }
 
 export const authenticationRoutes: FastifyPluginCallback<AuthenticationRoutesOptions> = (
@@ -33,6 +42,10 @@ export const authenticationRoutes: FastifyPluginCallback<AuthenticationRoutesOpt
 
   const verifyEmailController = createVerifyEmailController({
     verifyEmailUseCase: options.verifyEmailUseCase,
+  });
+
+  const resendVerificationController = createResendVerificationController({
+    resendVerificationUseCase: options.resendVerificationUseCase,
   });
 
   fastify.post<RegisterRouteRequest>(
@@ -49,6 +62,14 @@ export const authenticationRoutes: FastifyPluginCallback<AuthenticationRoutesOpt
       schema: verifyEmailRouteSchema,
     },
     verifyEmailController,
+  );
+
+  fastify.post<ResendVerificationRouteRequest>(
+    '/resend-verification',
+    {
+      schema: resendVerificationRouteSchema,
+    },
+    resendVerificationController,
   );
 
   done();

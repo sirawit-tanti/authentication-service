@@ -45,6 +45,13 @@ const environmentSchema = z.object({
 
   EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(1_440).default(60),
 
+  EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(3_600)
+    .default(60),
+
   BULLMQ_PREFIX: z
     .string()
     .trim()
