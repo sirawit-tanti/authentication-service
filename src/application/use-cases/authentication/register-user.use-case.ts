@@ -4,7 +4,7 @@ import type { SecureTokenService } from '@/application/ports/crypto/secure-token
 import type { UserRegistrationRepository } from '@/application/ports/repositories/user-registration.repository.js';
 import type { Clock } from '@/application/ports/system/clock.js';
 import type { IdGenerator } from '@/application/ports/system/id-generator.js';
-import { PasswordPolicy } from '@/domain/authentication/services/password-policy.js';
+import type { PasswordPolicy } from '@/domain/authentication/services/password-policy.js';
 import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
 import { User } from '@/domain/users/entities/user.entity.js';
 import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';

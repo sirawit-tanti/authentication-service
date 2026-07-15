@@ -1,8 +1,12 @@
-import { UserRepository } from '@/application/ports/repositories/user.repository.js';
-import { ApplicationPrismaClient } from '../prisma-client.js';
-import { PrismaUserMapper } from '../mapper/prisma-user.mapper.js';
-import { User } from '@/domain/users/entities/user.entity.js';
 import { OptimisticConcurrencyError } from '@/application/errors/optimistic-concurrency.error.js';
+import type { UserRepository } from '@/application/ports/repositories/user.repository.js';
+import type { User } from '@/domain/users/entities/user.entity.js';
+import {
+  mapPrismaUserToDomain,
+  mapUserToPrismaCreateData,
+  mapUserToPrismaUpdateData,
+} from '../mapper/prisma-user.mapper.js';
+import type { ApplicationPrismaClient } from '../prisma-client.js';
 
 export class PrismaUserRepository implements UserRepository {
   private readonly prisma: ApplicationPrismaClient;
@@ -19,7 +23,7 @@ export class PrismaUserRepository implements UserRepository {
       },
     });
 
-    return record === null ? null : PrismaUserMapper.toDomain(record);
+    return record === null ? null : mapPrismaUserToDomain(record);
   }
 
   public async findByNormalizedEmail(normalizedEmail: string): Promise<User | null> {
@@ -30,22 +34,25 @@ export class PrismaUserRepository implements UserRepository {
       },
     });
 
-    return record === null ? null : PrismaUserMapper.toDomain(record);
+    return record === null ? null : mapPrismaUserToDomain(record);
   }
 
   public async existsByNormalizedEmail(normalizedEmail: string): Promise<boolean> {
-    const userCount = await this.prisma.user.count({
+    const record = await this.prisma.user.findFirst({
       where: {
         normalizedEmail,
         deletedAt: null,
       },
+      select: {
+        id: true,
+      },
     });
 
-    return userCount > 0;
+    return record !== null;
   }
 
   public async create(user: User): Promise<void> {
-    const data = PrismaUserMapper.toCreateData(user);
+    const data = mapUserToPrismaCreateData(user);
 
     await this.prisma.user.create({
       data,
@@ -53,7 +60,7 @@ export class PrismaUserRepository implements UserRepository {
   }
 
   public async update(user: User, expectedVersion: number): Promise<void> {
-    const data = PrismaUserMapper.toUpdateData(user);
+    const data = mapUserToPrismaUpdateData(user);
 
     const result = await this.prisma.user.updateMany({
       where: {

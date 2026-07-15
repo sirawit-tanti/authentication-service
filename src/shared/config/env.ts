@@ -44,6 +44,42 @@ const environmentSchema = z.object({
   BCRYPT_COST: z.coerce.number().int().min(10).max(15).default(12),
 
   EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(1_440).default(60),
+
+  BULLMQ_PREFIX: z
+    .string()
+    .trim()
+    .min(1)
+    .regex(/^[a-zA-Z0-9_-]+$/, {
+      message: 'BULLMQ_PREFIX may contain only letters, numbers, underscores, and hyphens',
+    })
+    .default('auth-queue'),
+
+  EMAIL_QUEUE_NAME: z
+    .string()
+    .trim()
+    .min(1)
+    .regex(/^[a-zA-Z0-9_-]+$/, {
+      message: 'EMAIL_QUEUE_NAME may contain only letters, numbers, underscores, and hyphens',
+    })
+    .default('authentication-email'),
+
+  EMAIL_WORKER_CONCURRENCY: z.coerce.number().int().positive().max(50).default(5),
+
+  EMAIL_JOB_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
+
+  EMAIL_JOB_BACKOFF_MS: z.coerce.number().int().positive().max(300_000).default(5_000),
+
+  EMAIL_PROVIDER: z.enum(['development']).default('development'),
+
+  EMAIL_FROM_ADDRESS: z.string().trim().email().default('no-reply@example.com'),
+
+  EMAIL_FROM_NAME: z.string().trim().min(1).max(100).default('Authentication Service'),
+
+  EMAIL_VERIFICATION_BASE_URL: z
+    .string()
+    .trim()
+    .url()
+    .default('http://localhost:3000/verify-email'),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);

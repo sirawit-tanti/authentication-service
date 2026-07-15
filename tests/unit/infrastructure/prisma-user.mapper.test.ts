@@ -1,7 +1,8 @@
 import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
 import { User } from '@/domain/users/entities/user.entity.js';
 import {
-  PrismaUserMapper,
+  mapPrismaUserToDomain,
+  mapUserToPrismaCreateData,
   type PrismaUserRecord,
 } from '@/infrastructure/database/mapper/prisma-user.mapper.js';
 import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
@@ -29,7 +30,7 @@ describe('PrismaUserMapper', () => {
   }
 
   it('maps a Prisma record to a domain entity', () => {
-    const user = PrismaUserMapper.toDomain(createRecord());
+    const user = mapPrismaUserToDomain(createRecord());
 
     expect(user.getId()).toBe('f7ee2402-e515-47fa-b79f-c700e82b4451');
     expect(user.getEmail().value).toBe('Sirawit@example.com');
@@ -47,7 +48,7 @@ describe('PrismaUserMapper', () => {
       now: createdAt,
     });
 
-    const data = PrismaUserMapper.toCreateData(user);
+    const data = mapUserToPrismaCreateData(user);
 
     expect(data).toEqual({
       id: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
@@ -68,7 +69,7 @@ describe('PrismaUserMapper', () => {
 
   it('rejects an unsupported stored user status', () => {
     expect(() =>
-      PrismaUserMapper.toDomain(
+      mapPrismaUserToDomain(
         createRecord({
           status: 'UNKNOWN_STATUS',
         }),
@@ -78,7 +79,7 @@ describe('PrismaUserMapper', () => {
 
   it('rejects inconsistent normalized email data', () => {
     expect(() =>
-      PrismaUserMapper.toDomain(
+      mapPrismaUserToDomain(
         createRecord({
           normalizedEmail: 'another@example.com',
         }),
