@@ -92,7 +92,7 @@ describe('RegisterUserUseCase', () => {
   it('creates a pending user and verification token', async () => {
     const result = await useCase.execute({
       email: '  Sirawit@Example.com  ',
-      password: 'SecurePassword#2026',
+      password: 'NotARealPassword#2026',
     });
 
     expect(result).toEqual({
@@ -107,7 +107,7 @@ describe('RegisterUserUseCase', () => {
 
     expect(registration?.user.getEmail().normalizedValue).toBe('sirawit@example.com');
 
-    expect(registration?.user.getPasswordHash()).toBe('hashed:SecurePassword#2026');
+    expect(registration?.user.getPasswordHash()).toBe('hashed:NotARealPassword#2026');
 
     expect(registration?.verificationToken).toEqual({
       id: 'generated-id-2',
@@ -152,7 +152,7 @@ describe('RegisterUserUseCase', () => {
     await expect(
       useCase.execute({
         email: 'sirawit@example.com',
-        password: 'SecurePassword#2026',
+        password: 'NotARealPassword#2026',
       }),
     ).rejects.toBeInstanceOf(EmailAlreadyExistsError);
 
