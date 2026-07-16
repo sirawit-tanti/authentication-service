@@ -104,6 +104,18 @@ const environmentSchema = z.object({
   LOGIN_MAX_FAILED_ATTEMPTS: z.coerce.number().int().positive().max(20).default(5),
 
   LOGIN_LOCK_DURATION_MINUTES: z.coerce.number().int().positive().max(1_440).default(15),
+
+  JWT_ACCESS_TOKEN_SECRET: z
+    .string()
+    .min(32, 'JWT access token secret must contain at least 32 characters'),
+
+  JWT_ACCESS_TOKEN_ISSUER: z.string().trim().min(1).default('authentication-service'),
+
+  JWT_ACCESS_TOKEN_AUDIENCE: z.string().trim().min(1).default('internal-applications'),
+
+  JWT_ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(60).default(15),
+
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().max(90).default(30),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);

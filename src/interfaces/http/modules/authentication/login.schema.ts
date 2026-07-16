@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const loginRequestSchema = z
   .object({
+    applicationId: z.uuid(),
+
     email: z
       .string()
       .trim()
@@ -27,18 +29,28 @@ export const loginRequestSchema = z
 export type LoginRequestBody = z.infer<typeof loginRequestSchema>;
 
 export const loginRouteSchema = {
-  description: 'Authenticate a user with email and password',
+  description: 'Authenticate a user and create a session',
+
   tags: ['Authentication'],
+
   body: {
     type: 'object',
     additionalProperties: false,
-    required: ['email', 'password'],
+
+    required: ['applicationId', 'email', 'password'],
+
     properties: {
+      applicationId: {
+        type: 'string',
+        format: 'uuid',
+      },
+
       email: {
         type: 'string',
         minLength: 1,
         maxLength: 320,
       },
+
       password: {
         type: 'string',
         minLength: 1,
@@ -52,38 +64,100 @@ export const loginRouteSchema = {
       type: 'object',
       additionalProperties: false,
       required: ['success', 'data'],
+
       properties: {
         success: {
           type: 'boolean',
           enum: [true],
         },
+
         data: {
           type: 'object',
           additionalProperties: false,
-          required: ['userId', 'email', 'status'],
+
+          required: ['user', 'sessionId', 'tokens'],
+
           properties: {
-            userId: {
-              type: 'string',
+            user: {
+              type: 'object',
+              additionalProperties: false,
+
+              required: ['userId', 'email', 'status'],
+
+              properties: {
+                userId: {
+                  type: 'string',
+                  format: 'uuid',
+                },
+
+                email: {
+                  type: 'string',
+                },
+
+                status: {
+                  type: 'string',
+                  enum: ['ACTIVE'],
+                },
+              },
             },
-            email: {
+
+            sessionId: {
               type: 'string',
+              format: 'uuid',
             },
-            status: {
-              type: 'string',
-              enum: ['ACTIVE'],
+
+            tokens: {
+              type: 'object',
+              additionalProperties: false,
+
+              required: [
+                'accessToken',
+                'refreshToken',
+                'tokenType',
+                'accessTokenExpiresInSeconds',
+                'refreshTokenExpiresAt',
+              ],
+
+              properties: {
+                accessToken: {
+                  type: 'string',
+                },
+
+                refreshToken: {
+                  type: 'string',
+                },
+
+                tokenType: {
+                  type: 'string',
+                  enum: ['Bearer'],
+                },
+
+                accessTokenExpiresInSeconds: {
+                  type: 'integer',
+                  minimum: 1,
+                },
+
+                refreshTokenExpiresAt: {
+                  type: 'string',
+                  format: 'date-time',
+                },
+              },
             },
           },
         },
       },
     },
+
     400: {
       type: 'object',
       additionalProperties: true,
     },
+
     401: {
       type: 'object',
       additionalProperties: true,
     },
+
     409: {
       type: 'object',
       additionalProperties: true,

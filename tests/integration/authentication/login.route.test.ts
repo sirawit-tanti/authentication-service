@@ -9,6 +9,8 @@ import type { LoginUserExecutor } from '@/interfaces/http/modules/authentication
 import { loginRoutes } from '@/interfaces/http/modules/authentication/login.routes.js';
 import { errorHandler } from '@/shared/errors/error-handler.js';
 
+const APPLICATION_ID = 'd797d3eb-41ce-40cf-9d79-30b15fe49042';
+
 class FakeLoginUserUseCase implements LoginUserExecutor {
   public command: LoginUserCommand | null = null;
 
@@ -22,15 +24,30 @@ class FakeLoginUserUseCase implements LoginUserExecutor {
     }
 
     return Promise.resolve({
-      userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
-      email: 'sirawit@example.com',
-      status: 'ACTIVE',
+      user: {
+        userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
+
+        email: 'sirawit@example.com',
+        status: 'ACTIVE',
+      },
+
+      sessionId: 'be4c57d3-b4c9-4eb5-a975-92adb74f69c8',
+
+      tokens: {
+        accessToken: 'test-access-token',
+        refreshToken: 'test-refresh-token',
+        tokenType: 'Bearer',
+        accessTokenExpiresInSeconds: 900,
+
+        refreshTokenExpiresAt: new Date('2026-08-15T00:00:00.000Z'),
+      },
     });
   }
 }
 
 describe('POST /api/v1/auth/login', () => {
   let application: FastifyInstance;
+
   let loginUserUseCase: FakeLoginUserUseCase;
 
   beforeEach(async () => {
@@ -54,12 +71,13 @@ describe('POST /api/v1/auth/login', () => {
     await application.close();
   });
 
-  it('authenticates a user', async () => {
+  it('authenticates a user and returns a token pair', async () => {
     const response = await application.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
 
       payload: {
+        applicationId: APPLICATION_ID,
         email: '  Sirawit@Example.com  ',
         password: 'UnitTestOnly#2026',
       },
@@ -71,13 +89,28 @@ describe('POST /api/v1/auth/login', () => {
       success: true,
 
       data: {
-        userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
-        email: 'sirawit@example.com',
-        status: 'ACTIVE',
+        user: {
+          userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
+
+          email: 'sirawit@example.com',
+          status: 'ACTIVE',
+        },
+
+        sessionId: 'be4c57d3-b4c9-4eb5-a975-92adb74f69c8',
+
+        tokens: {
+          accessToken: 'test-access-token',
+          refreshToken: 'test-refresh-token',
+          tokenType: 'Bearer',
+          accessTokenExpiresInSeconds: 900,
+
+          refreshTokenExpiresAt: '2026-08-15T00:00:00.000Z',
+        },
       },
     });
 
-    expect(loginUserUseCase.command).toEqual({
+    expect(loginUserUseCase.command).toMatchObject({
+      applicationId: APPLICATION_ID,
       email: 'Sirawit@Example.com',
       password: 'UnitTestOnly#2026',
     });
@@ -91,6 +124,7 @@ describe('POST /api/v1/auth/login', () => {
       url: '/api/v1/auth/login',
 
       payload: {
+        applicationId: APPLICATION_ID,
         email: 'sirawit@example.com',
         password: 'IncorrectTestOnly#2026',
       },
@@ -114,6 +148,7 @@ describe('POST /api/v1/auth/login', () => {
       url: '/api/v1/auth/login',
 
       payload: {
+        applicationId: 'not-a-uuid',
         email: 'invalid-email',
         password: '',
       },
@@ -139,6 +174,7 @@ describe('POST /api/v1/auth/login', () => {
       url: '/api/v1/auth/login',
 
       payload: {
+        applicationId: APPLICATION_ID,
         email: 'sirawit@example.com',
         password: 'UnitTestOnly#2026',
       },

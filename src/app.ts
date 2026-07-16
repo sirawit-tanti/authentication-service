@@ -30,7 +30,9 @@ export async function buildApplication(
           'request.headers.authorization',
           'request.headers.cookie',
           'req.body.password',
+          'req.body.refreshToken',
           'request.body.password',
+          'request.body.refreshToken',
           'password',
           'passwordHash',
           'token',
@@ -43,8 +45,15 @@ export async function buildApplication(
           'clientSecretHash',
           'apiKey',
           'keyHash',
+          'refreshToken',
         ],
         censor: '[REDACTED]',
+      },
+    },
+
+    ajv: {
+      customOptions: {
+        removeAdditional: false,
       },
     },
 

@@ -25,6 +25,16 @@ interface LoginRouteRequest {
   Body: LoginRequestBody;
 }
 
+function getUserAgent(request: FastifyRequest): string | undefined {
+  const userAgent = request.headers['user-agent'];
+
+  if (userAgent === undefined || userAgent.length === 0) {
+    return undefined;
+  }
+
+  return userAgent.slice(0, 512);
+}
+
 export function createLoginController(
   dependencies: LoginControllerDependencies,
 ): (request: FastifyRequest<LoginRouteRequest>, reply: FastifyReply) => Promise<void> {
@@ -61,10 +71,22 @@ export function createLoginController(
       return;
     }
 
+    const userAgent = getUserAgent(request);
+
     try {
       const result = await dependencies.loginUserUseCase.execute({
+        applicationId: validationResult.data.applicationId,
+
         email: validationResult.data.email,
         password: validationResult.data.password,
+
+        ipAddress: request.ip,
+
+        ...(userAgent === undefined
+          ? {}
+          : {
+              userAgent,
+            }),
       });
 
       await reply.status(200).send(createSuccessResponse(result));
