@@ -100,6 +100,10 @@ const environmentSchema = z.object({
     .default(60_000),
 
   OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().max(100).default(10),
+
+  LOGIN_MAX_FAILED_ATTEMPTS: z.coerce.number().int().positive().max(20).default(5),
+
+  LOGIN_LOCK_DURATION_MINUTES: z.coerce.number().int().positive().max(1_440).default(15),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);
