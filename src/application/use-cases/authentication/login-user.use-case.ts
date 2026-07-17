@@ -3,13 +3,13 @@ import { OptimisticConcurrencyError } from '@/application/errors/optimistic-conc
 import type { AuthenticationTokenPair } from '@/application/models/authentication-token-pair.js';
 import type { AccessTokenService } from '@/application/ports/authentication/access-token-service.js';
 import type { RefreshTokenService } from '@/application/ports/authentication/refresh-token-service.js';
-import type { PasswordHasher } from '@/application/ports/crypto/password-hasher.js';
+import type { PasswordHasher } from '@/application/ports/authentication/password-hasher.js';
 import type { LoginSessionRepository } from '@/application/ports/repositories/login-session.repository.js';
 import type { UserRepository } from '@/application/ports/repositories/user.repository.js';
 import type { Clock } from '@/application/ports/system/clock.js';
 import type { IdGenerator } from '@/application/ports/system/id-generator.js';
 import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 import type { User } from '@/domain/users/entities/user.entity.js';
 
 export interface LoginUserCommand {

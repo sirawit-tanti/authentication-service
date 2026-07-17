@@ -1,4 +1,4 @@
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 
 const MAXIMUM_EMAIL_LENGTH = 320;
 const MAXIMUM_LOCAL_PART_LENGTH = 64;

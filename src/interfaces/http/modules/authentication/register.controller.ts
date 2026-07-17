@@ -5,7 +5,7 @@ import type {
   RegisterUserCommand,
   RegisterUserResult,
 } from '@/application/use-cases/authentication/register-user.use-case.js';
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 import { createErrorResponse, createSuccessResponse } from '@/shared/http/api-response.js';
 import { registerRequestSchema, type RegisterRequestBody } from './register.schema.js';
 

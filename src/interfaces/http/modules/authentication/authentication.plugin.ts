@@ -37,6 +37,9 @@ import { ForgotPasswordUseCase } from '@/application/use-cases/authentication/fo
 import { CryptoPasswordResetTokenService } from '@/infrastructure/authentication/crypto-password-reset-token.service.js';
 import { PrismaForgotPasswordRepository } from '@/infrastructure/database/repositories/prisma-forgot-password.repository.js';
 import { forgotPasswordRoutes } from './forgot-password.routes.js';
+import { ResetPasswordUseCase } from '@/application/use-cases/authentication/reset-password.use-case.js';
+import { PrismaResetPasswordRepository } from '@/infrastructure/database/repositories/prisma-reset-password.repository.js';
+import { resetPasswordRoutes } from './reset-password.routes.js';
 
 const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): Promise<void> => {
   const passwordHasher = fastify.infrastructure.passwordHasher;
@@ -103,6 +106,14 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
   const forgotPasswordUseCase = new ForgotPasswordUseCase({
     repository: new PrismaForgotPasswordRepository(fastify.infrastructure.prisma),
 
+    passwordResetTokenService,
+    clock: fastify.infrastructure.clock,
+  });
+
+  const resetPasswordUseCase = new ResetPasswordUseCase({
+    repository: new PrismaResetPasswordRepository(fastify.infrastructure.prisma),
+
+    passwordHasher,
     passwordResetTokenService,
     clock: fastify.infrastructure.clock,
   });
@@ -200,6 +211,11 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
   await fastify.register(forgotPasswordRoutes, {
     prefix: '/api/v1/auth',
     forgotPasswordUseCase,
+  });
+
+  await fastify.register(resetPasswordRoutes, {
+    prefix: '/api/v1/auth',
+    resetPasswordUseCase,
   });
 
   await fastify.register(protectedAuthenticationRoutes, {

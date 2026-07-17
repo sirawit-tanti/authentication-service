@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 
-import type { PasswordHasher } from '@/application/ports/crypto/password-hasher.js';
+import type { PasswordHasher } from '@/application/ports/authentication/password-hasher.js';
 import { env } from '@/shared/config/env.js';
 
 export class BcryptPasswordHasher implements PasswordHasher {

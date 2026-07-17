@@ -1,5 +1,5 @@
 import { EmailAlreadyExistsError } from '../../../src/application/errors/email-already-exists.error.js';
-import type { PasswordHasher } from '../../../src/application/ports/crypto/password-hasher.js';
+import type { PasswordHasher } from '../../../src/application/ports/authentication/password-hasher.js';
 import type { SecureTokenService } from '../../../src/application/ports/crypto/secure-token-service.js';
 import type {
   CreateUserRegistrationInput,
@@ -9,7 +9,7 @@ import type { Clock } from '../../../src/application/ports/system/clock.js';
 import type { IdGenerator } from '../../../src/application/ports/system/id-generator.js';
 import { RegisterUserUseCase } from '../../../src/application/use-cases/authentication/register-user.use-case.js';
 import { PasswordPolicy } from '../../../src/domain/authentication/services/password-policy.js';
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 
 class FakeRegistrationRepository implements UserRegistrationRepository {
   public emailExists = false;

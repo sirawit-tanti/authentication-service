@@ -1,6 +1,6 @@
 import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
 import { User } from '@/domain/users/entities/user.entity.js';
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 
 describe('User', () => {
   const initialDate = new Date('2026-07-14T00:00:00.000Z');

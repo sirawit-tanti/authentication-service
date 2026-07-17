@@ -1,7 +1,7 @@
 import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
 import { User } from '@/domain/users/entities/user.entity.js';
 import { isUserStatus, type UserStatus } from '@/domain/users/types/user-status.js';
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 
 export interface PrismaUserRecord {
   id: string;

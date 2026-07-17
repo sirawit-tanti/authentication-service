@@ -7,7 +7,7 @@ import type {
   RegisterUserResult,
 } from '../../../src/application/use-cases/authentication/register-user.use-case.js';
 import type { VerifyEmailCommand } from '../../../src/application/use-cases/authentication/verify-email.use-case.js';
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 import type { RegisterUserExecutor } from '../../../src/interfaces/http/modules/authentication/register.controller.js';
 import { authenticationRoutes } from '../../../src/interfaces/http/modules/authentication/authentication.routes.js';
 import type { VerifyEmailExecutor } from '../../../src/interfaces/http/modules/authentication/verify-email.controller.js';

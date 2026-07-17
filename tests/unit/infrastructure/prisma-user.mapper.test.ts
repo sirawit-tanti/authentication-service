@@ -5,7 +5,7 @@ import {
   mapUserToPrismaCreateData,
   type PrismaUserRecord,
 } from '@/infrastructure/database/mapper/prisma-user.mapper.js';
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 
 describe('PrismaUserMapper', () => {
   const createdAt = new Date('2026-07-14T00:00:00.000Z');

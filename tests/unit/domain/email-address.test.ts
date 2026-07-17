@@ -1,5 +1,5 @@
 import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 
 describe('EmailAddress', () => {
   it('creates an email and normalizes it for comparison', () => {

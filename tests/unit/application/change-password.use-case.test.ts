@@ -1,4 +1,4 @@
-import type { PasswordHasher } from '@/application/ports/crypto/password-hasher.js';
+import type { PasswordHasher } from '@/application/ports/authentication/password-hasher.js';
 import type {
   ChangePasswordRepository,
   ChangePasswordUserRecord,

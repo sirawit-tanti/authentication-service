@@ -1,4 +1,4 @@
-import type { PasswordHasher } from '../../application/ports/crypto/password-hasher.js';
+import type { PasswordHasher } from '../../application/ports/authentication/password-hasher.js';
 import type { SecureTokenService } from '../../application/ports/crypto/secure-token-service.js';
 import type { Clock } from '../../application/ports/system/clock.js';
 import type { IdGenerator } from '../../application/ports/system/id-generator.js';

@@ -1,6 +1,6 @@
 import type { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
 import type { UserStatus } from '../types/user-status.js';
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 
 export interface UserState {
   id: string;

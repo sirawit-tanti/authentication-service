@@ -4,14 +4,14 @@ import {
   type SendEmailVerificationJobData,
 } from '@/application/jobs/email-job.js';
 import { OUTBOX_TOPICS } from '@/application/outbox/outbox-message.js';
-import type { PasswordHasher } from '@/application/ports/crypto/password-hasher.js';
+import type { PasswordHasher } from '@/application/ports/authentication/password-hasher.js';
 import type { SecureTokenService } from '@/application/ports/crypto/secure-token-service.js';
 import type { UserRegistrationRepository } from '@/application/ports/repositories/user-registration.repository.js';
 import type { Clock } from '@/application/ports/system/clock.js';
 import type { IdGenerator } from '@/application/ports/system/id-generator.js';
 import type { PasswordPolicy } from '@/domain/authentication/services/password-policy.js';
 import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
-import { DomainValidationError } from '@/shared/errors/domain-validation.error.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 import { User } from '@/domain/users/entities/user.entity.js';
 
 export interface RegisterUserCommand {

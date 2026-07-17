@@ -1,7 +1,7 @@
 import { InvalidCurrentPasswordError } from '@/application/errors/invalid-current-password.error.js';
 import { PasswordChangeConflictError } from '@/application/errors/password-change-conflict.error.js';
 import { PasswordUnchangedError } from '@/application/errors/password-unchanged.error.js';
-import type { PasswordHasher } from '@/application/ports/crypto/password-hasher.js';
+import type { PasswordHasher } from '@/application/ports/authentication/password-hasher.js';
 import type { ChangePasswordRepository } from '@/application/ports/repositories/change-password.repository.js';
 import type { Clock } from '@/application/ports/system/clock.js';
 

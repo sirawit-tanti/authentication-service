@@ -10,7 +10,7 @@ import type {
   GeneratedRefreshToken,
   RefreshTokenService,
 } from '../../../src/application/ports/authentication/refresh-token-service.js';
-import type { PasswordHasher } from '../../../src/application/ports/crypto/password-hasher.js';
+import type { PasswordHasher } from '../../../src/application/ports/authentication/password-hasher.js';
 import type {
   CreateLoginSessionInput,
   LoginSessionRepository,

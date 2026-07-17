@@ -1,4 +1,4 @@
-import type { DomainValidationIssue } from '@/shared/errors/domain-validation.error.js';
+import type { DomainValidationIssue } from '@/domain/errors/domain-validation.error.js';
 
 const MINIMUM_PASSWORD_LENGTH = 12;
 const MAXIMUM_PASSWORD_LENGTH = 128;
