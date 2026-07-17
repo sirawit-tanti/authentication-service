@@ -33,6 +33,10 @@ import { PrismaUserSessionRepository } from '@/infrastructure/database/repositor
 import { RevokeOtherUserSessionsUseCase } from '@/application/use-cases/authentication/revoke-other-user-sessions.use-case.js';
 import { ChangePasswordUseCase } from '@/application/use-cases/authentication/change-password.use-case.js';
 import { PrismaChangePasswordRepository } from '@/infrastructure/database/repositories/prisma-change-password.repository.js';
+import { ForgotPasswordUseCase } from '@/application/use-cases/authentication/forgot-password.use-case.js';
+import { CryptoPasswordResetTokenService } from '@/infrastructure/authentication/crypto-password-reset-token.service.js';
+import { PrismaForgotPasswordRepository } from '@/infrastructure/database/repositories/prisma-forgot-password.repository.js';
+import { forgotPasswordRoutes } from './forgot-password.routes.js';
 
 const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): Promise<void> => {
   const passwordHasher = fastify.infrastructure.passwordHasher;
@@ -92,6 +96,15 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
     audience: env.JWT_ACCESS_TOKEN_AUDIENCE,
 
     timeToLiveMinutes: env.JWT_ACCESS_TOKEN_TTL_MINUTES,
+  });
+
+  const passwordResetTokenService = new CryptoPasswordResetTokenService();
+
+  const forgotPasswordUseCase = new ForgotPasswordUseCase({
+    repository: new PrismaForgotPasswordRepository(fastify.infrastructure.prisma),
+
+    passwordResetTokenService,
+    clock: fastify.infrastructure.clock,
   });
 
   const authenticationGuard = createAuthenticationGuard({
@@ -182,6 +195,11 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
   await fastify.register(logoutRoutes, {
     prefix: '/api/v1/auth',
     logoutSessionUseCase,
+  });
+
+  await fastify.register(forgotPasswordRoutes, {
+    prefix: '/api/v1/auth',
+    forgotPasswordUseCase,
   });
 
   await fastify.register(protectedAuthenticationRoutes, {

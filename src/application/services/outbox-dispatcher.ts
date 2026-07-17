@@ -1,4 +1,8 @@
-import { EMAIL_JOB_NAMES, type SendEmailVerificationJobData } from '../jobs/email-job.js';
+import {
+  EMAIL_JOB_NAMES,
+  type SendEmailVerificationJobData,
+  type SendPasswordResetJobData,
+} from '../jobs/email-job.js';
 import { OUTBOX_TOPICS } from '../outbox/outbox-message.js';
 import type { EmailQueue } from '../ports/queues/email-queue.js';
 import type { OutboxRepository } from '../ports/repositories/outbox.repository.js';
@@ -19,6 +23,13 @@ export interface OutboxDispatcherOptions {
   batchSize: number;
   lockTimeoutMilliseconds: number;
   maximumAttempts: number;
+}
+
+interface PublishableOutboxMessage {
+  id: string;
+  topic: string;
+  eventType: string;
+  payload: unknown;
 }
 
 export class OutboxDispatcher {
@@ -65,7 +76,7 @@ export class OutboxDispatcher {
           {
             outboxMessageId: message.id,
             eventType: message.eventType,
-            error,
+            err: error,
           },
           'Outbox message publishing failed',
         );
@@ -75,26 +86,37 @@ export class OutboxDispatcher {
     return messages.length;
   }
 
-  private async publishMessage(message: {
-    id: string;
-    topic: string;
-    eventType: string;
-    payload: unknown;
-  }): Promise<void> {
+  private async publishMessage(message: PublishableOutboxMessage): Promise<void> {
     if (message.topic !== OUTBOX_TOPICS.EMAIL) {
       throw new Error(`Unsupported outbox topic: ${message.topic}`);
     }
 
-    if (message.eventType !== EMAIL_JOB_NAMES.SEND_EMAIL_VERIFICATION) {
-      throw new Error(`Unsupported email event type: ${message.eventType}`);
+    switch (message.eventType) {
+      case EMAIL_JOB_NAMES.SEND_EMAIL_VERIFICATION: {
+        const payload = this.parseEmailVerificationPayload(message.payload);
+
+        await this.options.emailQueue.enqueueEmailVerification({
+          ...payload,
+          jobId: message.id,
+        });
+
+        return;
+      }
+
+      case EMAIL_JOB_NAMES.SEND_PASSWORD_RESET: {
+        const payload = this.parsePasswordResetPayload(message.payload);
+
+        await this.options.emailQueue.enqueuePasswordReset({
+          ...payload,
+          jobId: message.id,
+        });
+
+        return;
+      }
+
+      default:
+        throw new Error(`Unsupported email event type: ${message.eventType}`);
     }
-
-    const payload = this.parseEmailVerificationPayload(message.payload);
-
-    await this.options.emailQueue.enqueueEmailVerification({
-      ...payload,
-      jobId: message.id,
-    });
   }
 
   private parseEmailVerificationPayload(payload: unknown): SendEmailVerificationJobData {
@@ -123,12 +145,40 @@ export class OutboxDispatcher {
     };
   }
 
+  private parsePasswordResetPayload(payload: unknown): SendPasswordResetJobData {
+    if (typeof payload !== 'object' || payload === null) {
+      throw new Error('Password reset payload must be an object');
+    }
+
+    const record = payload as Record<string, unknown>;
+
+    if (
+      record.version !== 1 ||
+      typeof record.userId !== 'string' ||
+      typeof record.email !== 'string' ||
+      typeof record.resetToken !== 'string' ||
+      typeof record.expiresAt !== 'string'
+    ) {
+      throw new Error('Password reset payload is invalid');
+    }
+
+    return {
+      version: 1,
+      userId: record.userId,
+      email: record.email,
+      resetToken: record.resetToken,
+      expiresAt: record.expiresAt,
+    };
+  }
+
   private calculateRetryDelay(attempts: number): number {
     const baseDelayMilliseconds = 1_000;
+
     const maximumDelayMilliseconds = 5 * 60 * 1_000;
 
     return Math.min(
       baseDelayMilliseconds * 2 ** Math.max(0, attempts - 1),
+
       maximumDelayMilliseconds,
     );
   }
