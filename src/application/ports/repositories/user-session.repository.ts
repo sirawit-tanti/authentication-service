@@ -19,10 +19,23 @@ export interface RevokeUserSessionInput {
   reason: string;
 }
 
+export interface RevokeOtherUserSessionsInput {
+  userId: string;
+  currentSessionId: string;
+  revokedAt: Date;
+  reason: string;
+}
+
+export interface RevokeOtherUserSessionsResult {
+  revokedCount: number;
+}
+
 export type RevokeUserSessionResult = 'REVOKED' | 'ALREADY_REVOKED' | 'NOT_FOUND';
 
 export interface UserSessionRepository {
   findByUserId(userId: string): Promise<UserSessionRecord[]>;
 
   revoke(input: RevokeUserSessionInput): Promise<RevokeUserSessionResult>;
+
+  revokeOthers(input: RevokeOtherUserSessionsInput): Promise<RevokeOtherUserSessionsResult>;
 }

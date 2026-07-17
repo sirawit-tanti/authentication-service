@@ -5,12 +5,15 @@ import { meController } from './me.controller.js';
 import { meRouteSchema } from './me.schema.js';
 import {
   createListSessionsController,
+  createRevokeOtherSessionsController,
   createRevokeSessionController,
   type ListUserSessionsExecutor,
+  type RevokeOtherUserSessionsExecutor,
   type RevokeUserSessionExecutor,
 } from './sessions.controller.js';
 import {
   listSessionsRouteSchema,
+  revokeOtherSessionsRouteSchema,
   revokeSessionRouteSchema,
   type RevokeSessionParams,
 } from './sessions.schema.js';
@@ -21,6 +24,8 @@ export interface ProtectedAuthenticationRoutesOptions {
   listUserSessionsUseCase: ListUserSessionsExecutor;
 
   revokeUserSessionUseCase: RevokeUserSessionExecutor;
+
+  revokeOtherUserSessionsUseCase: RevokeOtherUserSessionsExecutor;
 }
 
 interface RevokeSessionRequest {
@@ -36,6 +41,8 @@ export const protectedAuthenticationRoutes: FastifyPluginCallback<
     listUserSessionsUseCase: options.listUserSessionsUseCase,
 
     revokeUserSessionUseCase: options.revokeUserSessionUseCase,
+
+    revokeOtherUserSessionsUseCase: options.revokeOtherUserSessionsUseCase,
   };
 
   fastify.get(
@@ -54,6 +61,15 @@ export const protectedAuthenticationRoutes: FastifyPluginCallback<
       preHandler: options.authenticationGuard,
     },
     createListSessionsController(controllerDependencies),
+  );
+
+  fastify.delete(
+    '/sessions',
+    {
+      schema: revokeOtherSessionsRouteSchema,
+      preHandler: options.authenticationGuard,
+    },
+    createRevokeOtherSessionsController(controllerDependencies),
   );
 
   fastify.delete<RevokeSessionRequest>(

@@ -12,6 +12,8 @@ import type {
 } from '../../../src/interfaces/http/modules/authentication/sessions.controller.js';
 import { protectedAuthenticationRoutes } from '../../../src/interfaces/http/modules/authentication/protected-authentication.routes.js';
 import { errorHandler } from '../../../src/shared/errors/error-handler.js';
+import type { RevokeOtherUserSessionsCommand } from '../../../src/application/use-cases/authentication/revoke-other-user-sessions.use-case.js';
+import type { RevokeOtherUserSessionsExecutor } from '../../../src/interfaces/http/modules/authentication/sessions.controller.js';
 
 const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
 
@@ -58,6 +60,20 @@ class FakeRevokeUserSessionUseCase implements RevokeUserSessionExecutor {
   }
 }
 
+class FakeRevokeOtherUserSessionsUseCase implements RevokeOtherUserSessionsExecutor {
+  public command: RevokeOtherUserSessionsCommand | null = null;
+
+  public execute(command: RevokeOtherUserSessionsCommand): Promise<{
+    revokedCount: number;
+  }> {
+    this.command = command;
+
+    return Promise.resolve({
+      revokedCount: 2,
+    });
+  }
+}
+
 function createGuard(): AuthenticationGuard {
   return function authenticationGuard(request, reply): Promise<void> {
     void reply;
@@ -77,6 +93,7 @@ describe('Authentication session routes', () => {
   let application: FastifyInstance;
   let listUseCase: FakeListUserSessionsUseCase;
   let revokeUseCase: FakeRevokeUserSessionUseCase;
+  let revokeOtherUseCase: FakeRevokeOtherUserSessionsUseCase;
 
   beforeEach(async () => {
     application = Fastify({
@@ -87,6 +104,8 @@ describe('Authentication session routes', () => {
 
     revokeUseCase = new FakeRevokeUserSessionUseCase();
 
+    revokeOtherUseCase = new FakeRevokeOtherUserSessionsUseCase();
+
     await application.register(errorHandler);
 
     await application.register(protectedAuthenticationRoutes, {
@@ -94,6 +113,7 @@ describe('Authentication session routes', () => {
       authenticationGuard: createGuard(),
       listUserSessionsUseCase: listUseCase,
       revokeUserSessionUseCase: revokeUseCase,
+      revokeOtherUserSessionsUseCase: revokeOtherUseCase,
     });
 
     await application.ready();
@@ -176,5 +196,31 @@ describe('Authentication session routes', () => {
 
     expect(response.statusCode).toBe(400);
     expect(revokeUseCase.command).toBeNull();
+  });
+
+  it('revokes all sessions except the current session', async () => {
+    const response = await application.inject({
+      method: 'DELETE',
+      url: '/api/v1/auth/sessions',
+
+      headers: {
+        authorization: 'Bearer test-access-token',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    expect(response.json()).toEqual({
+      success: true,
+
+      data: {
+        revokedCount: 2,
+      },
+    });
+
+    expect(revokeOtherUseCase.command).toEqual({
+      userId: USER_ID,
+      currentSessionId: CURRENT_SESSION_ID,
+    });
   });
 });

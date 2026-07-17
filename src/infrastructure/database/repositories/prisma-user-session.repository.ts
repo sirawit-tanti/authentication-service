@@ -1,4 +1,6 @@
 import type {
+  RevokeOtherUserSessionsInput,
+  RevokeOtherUserSessionsResult,
   RevokeUserSessionInput,
   RevokeUserSessionResult,
   UserSessionRecord,
@@ -108,6 +110,82 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
         });
 
         return 'REVOKED';
+      },
+      {
+        maxWait: 2_000,
+        timeout: 5_000,
+      },
+    );
+  }
+
+  public async revokeOthers(
+    input: RevokeOtherUserSessionsInput,
+  ): Promise<RevokeOtherUserSessionsResult> {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const sessions = await transaction.session.findMany({
+          where: {
+            userId: input.userId,
+
+            id: {
+              not: input.currentSessionId,
+            },
+
+            status: 'ACTIVE',
+            revokedAt: null,
+          },
+
+          select: {
+            id: true,
+          },
+        });
+
+        const sessionIds = sessions.map((session): string => session.id);
+
+        if (sessionIds.length === 0) {
+          return {
+            revokedCount: 0,
+          };
+        }
+
+        const sessionUpdate = await transaction.session.updateMany({
+          where: {
+            id: {
+              in: sessionIds,
+            },
+
+            userId: input.userId,
+            status: 'ACTIVE',
+            revokedAt: null,
+          },
+
+          data: {
+            status: 'REVOKED',
+            revokedAt: input.revokedAt,
+            revokeReason: input.reason,
+            lastActivityAt: input.revokedAt,
+            updatedAt: input.revokedAt,
+          },
+        });
+
+        await transaction.refreshToken.updateMany({
+          where: {
+            sessionId: {
+              in: sessionIds,
+            },
+
+            revokedAt: null,
+          },
+
+          data: {
+            revokedAt: input.revokedAt,
+            revokeReason: input.reason,
+          },
+        });
+
+        return {
+          revokedCount: sessionUpdate.count,
+        };
       },
       {
         maxWait: 2_000,

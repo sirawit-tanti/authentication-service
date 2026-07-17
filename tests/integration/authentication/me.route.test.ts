@@ -13,6 +13,8 @@ import type {
 import { protectedAuthenticationRoutes } from '../../../src/interfaces/http/modules/authentication/protected-authentication.routes.js';
 import { errorHandler } from '../../../src/shared/errors/error-handler.js';
 import { createErrorResponse } from '../../../src/shared/http/api-response.js';
+import type { RevokeOtherUserSessionsCommand } from '../../../src/application/use-cases/authentication/revoke-other-user-sessions.use-case.js';
+import type { RevokeOtherUserSessionsExecutor } from '../../../src/interfaces/http/modules/authentication/sessions.controller.js';
 
 const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
 
@@ -35,6 +37,18 @@ class FakeRevokeUserSessionUseCase implements RevokeUserSessionExecutor {
     void command;
 
     return Promise.resolve();
+  }
+}
+
+class FakeRevokeOtherUserSessionsUseCase implements RevokeOtherUserSessionsExecutor {
+  public execute(command: RevokeOtherUserSessionsCommand): Promise<{
+    revokedCount: number;
+  }> {
+    void command;
+
+    return Promise.resolve({
+      revokedCount: 0,
+    });
   }
 }
 
@@ -83,6 +97,8 @@ describe('GET /api/v1/auth/me', () => {
       listUserSessionsUseCase: new FakeListUserSessionsUseCase(),
 
       revokeUserSessionUseCase: new FakeRevokeUserSessionUseCase(),
+
+      revokeOtherUserSessionsUseCase: new FakeRevokeOtherUserSessionsUseCase(),
     });
 
     await application.ready();
@@ -125,6 +141,8 @@ describe('GET /api/v1/auth/me', () => {
       listUserSessionsUseCase: new FakeListUserSessionsUseCase(),
 
       revokeUserSessionUseCase: new FakeRevokeUserSessionUseCase(),
+
+      revokeOtherUserSessionsUseCase: new FakeRevokeOtherUserSessionsUseCase(),
     });
 
     await application.ready();

@@ -4,6 +4,7 @@ import type {
   ListUserSessionsCommand,
   ListUserSessionsResult,
 } from '@/application/use-cases/authentication/list-user-sessions.use-case.js';
+import type { RevokeOtherUserSessionsCommand } from '@/application/use-cases/authentication/revoke-other-user-sessions.use-case.js';
 import type { RevokeUserSessionCommand } from '@/application/use-cases/authentication/revoke-user-session.use-case.js';
 import {
   createErrorResponse,
@@ -20,10 +21,18 @@ export interface RevokeUserSessionExecutor {
   execute(command: RevokeUserSessionCommand): Promise<void>;
 }
 
+export interface RevokeOtherUserSessionsExecutor {
+  execute(command: RevokeOtherUserSessionsCommand): Promise<{
+    revokedCount: number;
+  }>;
+}
+
 export interface SessionsControllerDependencies {
   listUserSessionsUseCase: ListUserSessionsExecutor;
 
   revokeUserSessionUseCase: RevokeUserSessionExecutor;
+
+  revokeOtherUserSessionsUseCase: RevokeOtherUserSessionsExecutor;
 }
 
 interface RevokeSessionRequest {
@@ -108,5 +117,29 @@ export function createRevokeSessionController(
     });
 
     await reply.status(204).send();
+  };
+}
+
+export function createRevokeOtherSessionsController(
+  dependencies: SessionsControllerDependencies,
+): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
+  return async function revokeOtherSessionsController(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const principal = request.authenticatedPrincipal;
+
+    if (principal === null) {
+      await sendUnauthorized(reply);
+
+      return;
+    }
+
+    const result = await dependencies.revokeOtherUserSessionsUseCase.execute({
+      userId: principal.userId,
+      currentSessionId: principal.sessionId,
+    });
+
+    await reply.status(200).send(createSuccessResponse(result));
   };
 }
