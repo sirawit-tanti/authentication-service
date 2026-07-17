@@ -24,6 +24,9 @@ import { refreshRoutes } from './refresh.routes.js';
 import { LogoutSessionUseCase } from '@/application/use-cases/authentication/logout-session.use-case.js';
 import { PrismaLogoutSessionRepository } from '@/infrastructure/database/repositories/prisma-logout-session.repository.js';
 import { logoutRoutes } from './logout.routes.js';
+import { PrismaAccessSessionRepository } from '@/infrastructure/database/repositories/prisma-access-session.repository.js';
+import { createAuthenticationGuard } from '../../authentication/authentication-guard.js';
+import { protectedAuthenticationRoutes } from './protected-authentication.routes.js';
 
 const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): Promise<void> => {
   const passwordHasher = fastify.infrastructure.passwordHasher;
@@ -76,6 +79,12 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
     audience: env.JWT_ACCESS_TOKEN_AUDIENCE,
 
     timeToLiveMinutes: env.JWT_ACCESS_TOKEN_TTL_MINUTES,
+  });
+
+  const authenticationGuard = createAuthenticationGuard({
+    accessTokenService,
+    accessSessionRepository: new PrismaAccessSessionRepository(fastify.infrastructure.prisma),
+    clock: fastify.infrastructure.clock,
   });
 
   const refreshTokenService = new CryptoRefreshTokenService();
@@ -146,6 +155,11 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
   await fastify.register(logoutRoutes, {
     prefix: '/api/v1/auth',
     logoutSessionUseCase,
+  });
+
+  await fastify.register(protectedAuthenticationRoutes, {
+    prefix: '/api/v1/auth',
+    authenticationGuard,
   });
 };
 

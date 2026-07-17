@@ -8,7 +8,7 @@ import type {
 import {
   createErrorResponse,
   createSuccessResponse,
-  ApiErrorDetail,
+  type ApiErrorDetail,
 } from '@/shared/http/api-response.js';
 import { refreshRequestSchema, type RefreshRequestBody } from './refresh.schema.js';
 
