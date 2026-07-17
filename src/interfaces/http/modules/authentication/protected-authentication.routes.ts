@@ -17,6 +17,14 @@ import {
   revokeSessionRouteSchema,
   type RevokeSessionParams,
 } from './sessions.schema.js';
+import {
+  createChangePasswordController,
+  type ChangePasswordExecutor,
+} from './change-password.controller.js';
+import {
+  changePasswordRouteSchema,
+  type ChangePasswordRequestBody,
+} from './change-password.schema.js';
 
 export interface ProtectedAuthenticationRoutesOptions {
   authenticationGuard: AuthenticationGuard;
@@ -26,10 +34,16 @@ export interface ProtectedAuthenticationRoutesOptions {
   revokeUserSessionUseCase: RevokeUserSessionExecutor;
 
   revokeOtherUserSessionsUseCase: RevokeOtherUserSessionsExecutor;
+
+  changePasswordUseCase: ChangePasswordExecutor;
 }
 
 interface RevokeSessionRequest {
   Params: RevokeSessionParams;
+}
+
+interface ChangePasswordRouteRequest {
+  Body: ChangePasswordRequestBody;
 }
 
 export const protectedAuthenticationRoutes: FastifyPluginCallback<
@@ -43,6 +57,8 @@ export const protectedAuthenticationRoutes: FastifyPluginCallback<
     revokeUserSessionUseCase: options.revokeUserSessionUseCase,
 
     revokeOtherUserSessionsUseCase: options.revokeOtherUserSessionsUseCase,
+
+    changePasswordUseCase: options.changePasswordUseCase,
   };
 
   fastify.get(
@@ -52,6 +68,17 @@ export const protectedAuthenticationRoutes: FastifyPluginCallback<
       preHandler: options.authenticationGuard,
     },
     meController,
+  );
+
+  fastify.post<ChangePasswordRouteRequest>(
+    '/change-password',
+    {
+      schema: changePasswordRouteSchema,
+      preHandler: options.authenticationGuard,
+    },
+    createChangePasswordController({
+      changePasswordUseCase: options.changePasswordUseCase,
+    }),
   );
 
   fastify.get(

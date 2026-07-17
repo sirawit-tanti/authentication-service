@@ -31,9 +31,18 @@ import { ListUserSessionsUseCase } from '@/application/use-cases/authentication/
 import { RevokeUserSessionUseCase } from '@/application/use-cases/authentication/revoke-user-session.use-case.js';
 import { PrismaUserSessionRepository } from '@/infrastructure/database/repositories/prisma-user-session.repository.js';
 import { RevokeOtherUserSessionsUseCase } from '@/application/use-cases/authentication/revoke-other-user-sessions.use-case.js';
+import { ChangePasswordUseCase } from '@/application/use-cases/authentication/change-password.use-case.js';
+import { PrismaChangePasswordRepository } from '@/infrastructure/database/repositories/prisma-change-password.repository.js';
 
 const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): Promise<void> => {
   const passwordHasher = fastify.infrastructure.passwordHasher;
+
+  const changePasswordUseCase = new ChangePasswordUseCase({
+    repository: new PrismaChangePasswordRepository(fastify.infrastructure.prisma),
+
+    passwordHasher,
+    clock: fastify.infrastructure.clock,
+  });
 
   const dummyPasswordHash = await passwordHasher.hash(randomUUID());
 
@@ -181,6 +190,7 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
     listUserSessionsUseCase,
     revokeUserSessionUseCase,
     revokeOtherUserSessionsUseCase,
+    changePasswordUseCase,
   });
 };
 

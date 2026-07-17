@@ -15,6 +15,8 @@ import { errorHandler } from '../../../src/shared/errors/error-handler.js';
 import { createErrorResponse } from '../../../src/shared/http/api-response.js';
 import type { RevokeOtherUserSessionsCommand } from '../../../src/application/use-cases/authentication/revoke-other-user-sessions.use-case.js';
 import type { RevokeOtherUserSessionsExecutor } from '../../../src/interfaces/http/modules/authentication/sessions.controller.js';
+import type { ChangePasswordCommand } from '../../../src/application/use-cases/authentication/change-password.use-case.js';
+import type { ChangePasswordExecutor } from '../../../src/interfaces/http/modules/authentication/change-password.controller.js';
 
 const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
 
@@ -49,6 +51,14 @@ class FakeRevokeOtherUserSessionsUseCase implements RevokeOtherUserSessionsExecu
     return Promise.resolve({
       revokedCount: 0,
     });
+  }
+}
+
+class FakeChangePasswordUseCase implements ChangePasswordExecutor {
+  public execute(command: ChangePasswordCommand): Promise<void> {
+    void command;
+
+    return Promise.resolve();
   }
 }
 
@@ -99,6 +109,8 @@ describe('GET /api/v1/auth/me', () => {
       revokeUserSessionUseCase: new FakeRevokeUserSessionUseCase(),
 
       revokeOtherUserSessionsUseCase: new FakeRevokeOtherUserSessionsUseCase(),
+
+      changePasswordUseCase: new FakeChangePasswordUseCase(),
     });
 
     await application.ready();
@@ -143,6 +155,8 @@ describe('GET /api/v1/auth/me', () => {
       revokeUserSessionUseCase: new FakeRevokeUserSessionUseCase(),
 
       revokeOtherUserSessionsUseCase: new FakeRevokeOtherUserSessionsUseCase(),
+
+      changePasswordUseCase: new FakeChangePasswordUseCase(),
     });
 
     await application.ready();

@@ -14,6 +14,8 @@ import { protectedAuthenticationRoutes } from '../../../src/interfaces/http/modu
 import { errorHandler } from '../../../src/shared/errors/error-handler.js';
 import type { RevokeOtherUserSessionsCommand } from '../../../src/application/use-cases/authentication/revoke-other-user-sessions.use-case.js';
 import type { RevokeOtherUserSessionsExecutor } from '../../../src/interfaces/http/modules/authentication/sessions.controller.js';
+import type { ChangePasswordCommand } from '../../../src/application/use-cases/authentication/change-password.use-case.js';
+import type { ChangePasswordExecutor } from '../../../src/interfaces/http/modules/authentication/change-password.controller.js';
 
 const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
 
@@ -74,6 +76,14 @@ class FakeRevokeOtherUserSessionsUseCase implements RevokeOtherUserSessionsExecu
   }
 }
 
+class FakeChangePasswordUseCase implements ChangePasswordExecutor {
+  public execute(command: ChangePasswordCommand): Promise<void> {
+    void command;
+
+    return Promise.resolve();
+  }
+}
+
 function createGuard(): AuthenticationGuard {
   return function authenticationGuard(request, reply): Promise<void> {
     void reply;
@@ -94,6 +104,7 @@ describe('Authentication session routes', () => {
   let listUseCase: FakeListUserSessionsUseCase;
   let revokeUseCase: FakeRevokeUserSessionUseCase;
   let revokeOtherUseCase: FakeRevokeOtherUserSessionsUseCase;
+  let changePasswordUseCase: FakeChangePasswordUseCase;
 
   beforeEach(async () => {
     application = Fastify({
@@ -106,6 +117,8 @@ describe('Authentication session routes', () => {
 
     revokeOtherUseCase = new FakeRevokeOtherUserSessionsUseCase();
 
+    changePasswordUseCase = new FakeChangePasswordUseCase();
+
     await application.register(errorHandler);
 
     await application.register(protectedAuthenticationRoutes, {
@@ -114,6 +127,7 @@ describe('Authentication session routes', () => {
       listUserSessionsUseCase: listUseCase,
       revokeUserSessionUseCase: revokeUseCase,
       revokeOtherUserSessionsUseCase: revokeOtherUseCase,
+      changePasswordUseCase,
     });
 
     await application.ready();
