@@ -27,6 +27,9 @@ import { logoutRoutes } from './logout.routes.js';
 import { PrismaAccessSessionRepository } from '@/infrastructure/database/repositories/prisma-access-session.repository.js';
 import { createAuthenticationGuard } from '../../authentication/authentication-guard.js';
 import { protectedAuthenticationRoutes } from './protected-authentication.routes.js';
+import { ListUserSessionsUseCase } from '@/application/use-cases/authentication/list-user-sessions.use-case.js';
+import { RevokeUserSessionUseCase } from '@/application/use-cases/authentication/revoke-user-session.use-case.js';
+import { PrismaUserSessionRepository } from '@/infrastructure/database/repositories/prisma-user-session.repository.js';
 
 const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): Promise<void> => {
   const passwordHasher = fastify.infrastructure.passwordHasher;
@@ -84,6 +87,15 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
   const authenticationGuard = createAuthenticationGuard({
     accessTokenService,
     accessSessionRepository: new PrismaAccessSessionRepository(fastify.infrastructure.prisma),
+    clock: fastify.infrastructure.clock,
+  });
+
+  const userSessionRepository = new PrismaUserSessionRepository(fastify.infrastructure.prisma);
+
+  const listUserSessionsUseCase = new ListUserSessionsUseCase(userSessionRepository);
+
+  const revokeUserSessionUseCase = new RevokeUserSessionUseCase({
+    repository: userSessionRepository,
     clock: fastify.infrastructure.clock,
   });
 
@@ -160,6 +172,8 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
   await fastify.register(protectedAuthenticationRoutes, {
     prefix: '/api/v1/auth',
     authenticationGuard,
+    listUserSessionsUseCase,
+    revokeUserSessionUseCase,
   });
 };
 

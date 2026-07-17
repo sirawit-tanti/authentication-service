@@ -1,0 +1,180 @@
+import Fastify, { type FastifyInstance } from 'fastify';
+
+import type {
+  ListUserSessionsCommand,
+  ListUserSessionsResult,
+} from '../../../src/application/use-cases/authentication/list-user-sessions.use-case.js';
+import type { RevokeUserSessionCommand } from '../../../src/application/use-cases/authentication/revoke-user-session.use-case.js';
+import type { AuthenticationGuard } from '../../../src/interfaces/http/authentication/authentication-guard.js';
+import type {
+  ListUserSessionsExecutor,
+  RevokeUserSessionExecutor,
+} from '../../../src/interfaces/http/modules/authentication/sessions.controller.js';
+import { protectedAuthenticationRoutes } from '../../../src/interfaces/http/modules/authentication/protected-authentication.routes.js';
+import { errorHandler } from '../../../src/shared/errors/error-handler.js';
+
+const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
+
+const APPLICATION_ID = 'd797d3eb-41ce-40cf-9d79-30b15fe49042';
+
+const CURRENT_SESSION_ID = 'be4c57d3-b4c9-4eb5-a975-92adb74f69c8';
+
+const OTHER_SESSION_ID = '401a82b5-dbf1-4e76-b084-dce1da232008';
+
+class FakeListUserSessionsUseCase implements ListUserSessionsExecutor {
+  public command: ListUserSessionsCommand | null = null;
+
+  public execute(command: ListUserSessionsCommand): Promise<ListUserSessionsResult> {
+    this.command = command;
+
+    return Promise.resolve({
+      sessions: [
+        {
+          sessionId: CURRENT_SESSION_ID,
+          applicationId: APPLICATION_ID,
+          deviceId: null,
+          status: 'ACTIVE',
+          ipAddress: '127.0.0.1',
+          userAgent: 'Vitest',
+          lastActivityAt: new Date('2026-07-16T00:00:00.000Z'),
+          expiresAt: new Date('2026-08-15T00:00:00.000Z'),
+          revokedAt: null,
+          revokeReason: null,
+          createdAt: new Date('2026-07-16T00:00:00.000Z'),
+          current: true,
+        },
+      ],
+    });
+  }
+}
+
+class FakeRevokeUserSessionUseCase implements RevokeUserSessionExecutor {
+  public command: RevokeUserSessionCommand | null = null;
+
+  public execute(command: RevokeUserSessionCommand): Promise<void> {
+    this.command = command;
+
+    return Promise.resolve();
+  }
+}
+
+function createGuard(): AuthenticationGuard {
+  return function authenticationGuard(request, reply): Promise<void> {
+    void reply;
+
+    request.authenticatedPrincipal = {
+      userId: USER_ID,
+      email: 'sirawit@example.com',
+      applicationId: APPLICATION_ID,
+      sessionId: CURRENT_SESSION_ID,
+    };
+
+    return Promise.resolve();
+  };
+}
+
+describe('Authentication session routes', () => {
+  let application: FastifyInstance;
+  let listUseCase: FakeListUserSessionsUseCase;
+  let revokeUseCase: FakeRevokeUserSessionUseCase;
+
+  beforeEach(async () => {
+    application = Fastify({
+      logger: false,
+    });
+
+    listUseCase = new FakeListUserSessionsUseCase();
+
+    revokeUseCase = new FakeRevokeUserSessionUseCase();
+
+    await application.register(errorHandler);
+
+    await application.register(protectedAuthenticationRoutes, {
+      prefix: '/api/v1/auth',
+      authenticationGuard: createGuard(),
+      listUserSessionsUseCase: listUseCase,
+      revokeUserSessionUseCase: revokeUseCase,
+    });
+
+    await application.ready();
+  });
+
+  afterEach(async () => {
+    await application.close();
+  });
+
+  it('lists the current user sessions', async () => {
+    const response = await application.inject({
+      method: 'GET',
+      url: '/api/v1/auth/sessions',
+
+      headers: {
+        authorization: 'Bearer test-access-token',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    expect(response.json()).toEqual({
+      success: true,
+
+      data: {
+        sessions: [
+          {
+            sessionId: CURRENT_SESSION_ID,
+            applicationId: APPLICATION_ID,
+            deviceId: null,
+            status: 'ACTIVE',
+            ipAddress: '127.0.0.1',
+            userAgent: 'Vitest',
+            lastActivityAt: '2026-07-16T00:00:00.000Z',
+            expiresAt: '2026-08-15T00:00:00.000Z',
+            revokedAt: null,
+            revokeReason: null,
+            createdAt: '2026-07-16T00:00:00.000Z',
+            current: true,
+          },
+        ],
+      },
+    });
+
+    expect(listUseCase.command).toEqual({
+      userId: USER_ID,
+      currentSessionId: CURRENT_SESSION_ID,
+    });
+  });
+
+  it('revokes a session owned by the current user', async () => {
+    const response = await application.inject({
+      method: 'DELETE',
+
+      url: `/api/v1/auth/sessions/${OTHER_SESSION_ID}`,
+
+      headers: {
+        authorization: 'Bearer test-access-token',
+      },
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(response.body).toBe('');
+
+    expect(revokeUseCase.command).toEqual({
+      userId: USER_ID,
+      sessionId: OTHER_SESSION_ID,
+    });
+  });
+
+  it('rejects an invalid session ID', async () => {
+    const response = await application.inject({
+      method: 'DELETE',
+      url: '/api/v1/auth/sessions/not-a-uuid',
+
+      headers: {
+        authorization: 'Bearer test-access-token',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(revokeUseCase.command).toBeNull();
+  });
+});
