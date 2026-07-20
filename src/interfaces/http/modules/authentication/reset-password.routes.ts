@@ -1,5 +1,6 @@
 import type { FastifyPluginCallback } from 'fastify';
 
+import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
 import {
   createResetPasswordController,
   type ResetPasswordExecutor,
@@ -26,6 +27,9 @@ export const resetPasswordRoutes: FastifyPluginCallback<ResetPasswordRoutesOptio
     '/reset-password',
     {
       schema: resetPasswordRouteSchema,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.PASSWORD_ACTION,
+      },
     },
     createResetPasswordController({
       resetPasswordUseCase: options.resetPasswordUseCase,

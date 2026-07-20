@@ -25,6 +25,7 @@ import {
   changePasswordRouteSchema,
   type ChangePasswordRequestBody,
 } from './change-password.schema.js';
+import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
 
 export interface ProtectedAuthenticationRoutesOptions {
   authenticationGuard: AuthenticationGuard;
@@ -75,6 +76,9 @@ export const protectedAuthenticationRoutes: FastifyPluginCallback<
     {
       schema: changePasswordRouteSchema,
       preHandler: options.authenticationGuard,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.PASSWORD_ACTION,
+      },
     },
     createChangePasswordController({
       changePasswordUseCase: options.changePasswordUseCase,

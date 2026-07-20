@@ -1,5 +1,6 @@
 import type { FastifyPluginCallback } from 'fastify';
 
+import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
 import { createLoginController, type LoginUserExecutor } from './login.controller.js';
 import { loginRouteSchema, type LoginRequestBody } from './login.schema.js';
 
@@ -24,6 +25,9 @@ export const loginRoutes: FastifyPluginCallback<LoginRoutesOptions> = (
     '/login',
     {
       schema: loginRouteSchema,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.LOGIN,
+      },
     },
     loginController,
   );

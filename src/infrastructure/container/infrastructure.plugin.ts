@@ -80,7 +80,7 @@ function registerRedisLogging(fastify: FastifyInstance, container: Infrastructur
   container.redis.on('error', (error: Error) => {
     fastify.log.error(
       {
-        error,
+        err: error,
       },
       'Redis connection error',
     );
@@ -145,7 +145,7 @@ async function infrastructurePluginImplementation(
       if (result.status === 'rejected') {
         fastify.log.error(
           {
-            error: result.reason,
+            err: result.reason,
           },
           'Failed to close an infrastructure connection',
         );

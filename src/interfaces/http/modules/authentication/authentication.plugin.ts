@@ -40,8 +40,11 @@ import { forgotPasswordRoutes } from './forgot-password.routes.js';
 import { ResetPasswordUseCase } from '@/application/use-cases/authentication/reset-password.use-case.js';
 import { PrismaResetPasswordRepository } from '@/infrastructure/database/repositories/prisma-reset-password.repository.js';
 import { resetPasswordRoutes } from './reset-password.routes.js';
+import { registerAuthenticationRateLimit } from '../../rate-limit/authentication-rate-limit.plugin.js';
 
 const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): Promise<void> => {
+  await registerAuthenticationRateLimit(fastify);
+
   const passwordHasher = fastify.infrastructure.passwordHasher;
 
   const changePasswordUseCase = new ChangePasswordUseCase({

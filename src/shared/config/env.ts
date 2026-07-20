@@ -116,6 +116,51 @@ const environmentSchema = z.object({
   JWT_ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(60).default(15),
 
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().max(90).default(30),
+
+  AUTH_RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().max(100).default(5),
+
+  AUTH_RATE_LIMIT_LOGIN_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60 * 1_000)
+    .default(60 * 1_000),
+
+  AUTH_RATE_LIMIT_REGISTER_MAX: z.coerce.number().int().positive().max(100).default(5),
+
+  AUTH_RATE_LIMIT_REGISTER_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60 * 1_000)
+    .default(60 * 60 * 1_000),
+
+  AUTH_RATE_LIMIT_EMAIL_MAX: z.coerce.number().int().positive().max(100).default(3),
+
+  AUTH_RATE_LIMIT_EMAIL_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60 * 1_000)
+    .default(15 * 60 * 1_000),
+
+  AUTH_RATE_LIMIT_PASSWORD_MAX: z.coerce.number().int().positive().max(100).default(5),
+
+  AUTH_RATE_LIMIT_PASSWORD_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60 * 1_000)
+    .default(15 * 60 * 1_000),
+
+  AUTH_RATE_LIMIT_REFRESH_MAX: z.coerce.number().int().positive().max(1_000).default(20),
+
+  AUTH_RATE_LIMIT_REFRESH_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60 * 1_000)
+    .default(60 * 1_000),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);

@@ -1,5 +1,6 @@
 import type { FastifyPluginCallback } from 'fastify';
 
+import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
 import {
   createForgotPasswordController,
   type ForgotPasswordExecutor,
@@ -26,6 +27,9 @@ export const forgotPasswordRoutes: FastifyPluginCallback<ForgotPasswordRoutesOpt
     '/forgot-password',
     {
       schema: forgotPasswordRouteSchema,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.EMAIL_ACTION,
+      },
     },
     createForgotPasswordController({
       forgotPasswordUseCase: options.forgotPasswordUseCase,

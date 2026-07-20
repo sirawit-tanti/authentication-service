@@ -1,5 +1,6 @@
 import type { FastifyPluginCallback } from 'fastify';
 
+import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
 import { createRefreshController, type RefreshSessionExecutor } from './refresh.controller.js';
 import { refreshRouteSchema, type RefreshRequestBody } from './refresh.schema.js';
 
@@ -24,6 +25,9 @@ export const refreshRoutes: FastifyPluginCallback<RefreshRoutesOptions> = (
     '/refresh',
     {
       schema: refreshRouteSchema,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.REFRESH,
+      },
     },
     refreshController,
   );

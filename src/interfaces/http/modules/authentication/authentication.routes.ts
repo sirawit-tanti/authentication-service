@@ -1,5 +1,6 @@
 import type { FastifyPluginCallback } from 'fastify';
 
+import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
 import type { RegisterUserExecutor } from './register.controller.js';
 import { createRegisterController } from './register.controller.js';
 import { registerRouteSchema, type RegisterRequestBody } from './register.schema.js';
@@ -52,6 +53,9 @@ export const authenticationRoutes: FastifyPluginCallback<AuthenticationRoutesOpt
     '/register',
     {
       schema: registerRouteSchema,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.REGISTER,
+      },
     },
     registerController,
   );
@@ -60,6 +64,9 @@ export const authenticationRoutes: FastifyPluginCallback<AuthenticationRoutesOpt
     '/verify-email',
     {
       schema: verifyEmailRouteSchema,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.PASSWORD_ACTION,
+      },
     },
     verifyEmailController,
   );
@@ -68,6 +75,9 @@ export const authenticationRoutes: FastifyPluginCallback<AuthenticationRoutesOpt
     '/resend-verification',
     {
       schema: resendVerificationRouteSchema,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.EMAIL_ACTION,
+      },
     },
     resendVerificationController,
   );
