@@ -12,6 +12,8 @@ import { LogoutSessionUseCase } from '../../../src/application/use-cases/authent
 
 const FIXED_NOW = new Date('2026-07-16T00:00:00.000Z');
 
+const REQUEST_ID = 'logout-request-id';
+
 class FakeLogoutSessionRepository implements LogoutSessionRepository {
   public input: RevokeSessionByRefreshTokenInput | null = null;
 
@@ -30,7 +32,9 @@ class FakeRefreshTokenService implements RefreshTokenService {
   public generate(): GeneratedRefreshToken {
     return {
       rawToken: 'generated-refresh-token',
+
       tokenHash: 'generated-refresh-token-hash',
+
       jti: '91399467-9823-47d1-b483-786630fcf0fa',
     };
   }
@@ -48,6 +52,7 @@ class FixedClock implements Clock {
 
 interface TestContext {
   repository: FakeLogoutSessionRepository;
+
   useCase: LogoutSessionUseCase;
 }
 
@@ -56,7 +61,9 @@ function createTestContext(): TestContext {
 
   const useCase = new LogoutSessionUseCase({
     repository,
+
     refreshTokenService: new FakeRefreshTokenService(),
+
     clock: new FixedClock(),
   });
 
@@ -67,7 +74,31 @@ function createTestContext(): TestContext {
 }
 
 describe('LogoutSessionUseCase', () => {
-  it('revokes the session using the refresh token hash', async () => {
+  it('revokes the session and passes the audit request context', async () => {
+    const context = createTestContext();
+
+    await context.useCase.execute({
+      refreshToken: ' current-refresh-token ',
+
+      requestId: REQUEST_ID,
+      ipAddress: '127.0.0.1',
+      userAgent: 'Vitest',
+    });
+
+    expect(context.repository.input).toEqual({
+      refreshTokenHash: 'hashed:current-refresh-token',
+
+      revokedAt: FIXED_NOW,
+
+      reason: 'User requested logout',
+
+      requestId: REQUEST_ID,
+      ipAddress: '127.0.0.1',
+      userAgent: 'Vitest',
+    });
+  });
+
+  it('omits optional audit fields when they are not supplied', async () => {
     const context = createTestContext();
 
     await context.useCase.execute({
@@ -78,8 +109,15 @@ describe('LogoutSessionUseCase', () => {
       refreshTokenHash: 'hashed:current-refresh-token',
 
       revokedAt: FIXED_NOW,
+
       reason: 'User requested logout',
     });
+
+    expect(context.repository.input).not.toHaveProperty('requestId');
+
+    expect(context.repository.input).not.toHaveProperty('ipAddress');
+
+    expect(context.repository.input).not.toHaveProperty('userAgent');
   });
 
   it.each(['REVOKED', 'ALREADY_REVOKED', 'NOT_FOUND'] as const)(
@@ -103,6 +141,10 @@ describe('LogoutSessionUseCase', () => {
     await expect(
       context.useCase.execute({
         refreshToken: '   ',
+
+        requestId: REQUEST_ID,
+        ipAddress: '127.0.0.1',
+        userAgent: 'Vitest',
       }),
     ).resolves.toBeUndefined();
 

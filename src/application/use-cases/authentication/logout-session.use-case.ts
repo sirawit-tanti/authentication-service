@@ -1,10 +1,11 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 import type { RefreshTokenService } from '@/application/ports/authentication/refresh-token-service.js';
 import type { LogoutSessionRepository } from '@/application/ports/repositories/logout-session.repository.js';
 import type { Clock } from '@/application/ports/system/clock.js';
 
 const USER_LOGOUT_REASON = 'User requested logout';
 
-export interface LogoutSessionCommand {
+export interface LogoutSessionCommand extends AuditRequestContext {
   refreshToken: string;
 }
 
@@ -16,12 +17,16 @@ export interface LogoutSessionUseCaseDependencies {
 
 export class LogoutSessionUseCase {
   private readonly repository: LogoutSessionRepository;
+
   private readonly refreshTokenService: RefreshTokenService;
+
   private readonly clock: Clock;
 
   public constructor(dependencies: LogoutSessionUseCaseDependencies) {
     this.repository = dependencies.repository;
+
     this.refreshTokenService = dependencies.refreshTokenService;
+
     this.clock = dependencies.clock;
   }
 
@@ -36,7 +41,26 @@ export class LogoutSessionUseCase {
       refreshTokenHash: this.refreshTokenService.hash(rawRefreshToken),
 
       revokedAt: this.clock.now(),
+
       reason: USER_LOGOUT_REASON,
+
+      ...(command.requestId === undefined
+        ? {}
+        : {
+            requestId: command.requestId,
+          }),
+
+      ...(command.ipAddress === undefined
+        ? {}
+        : {
+            ipAddress: command.ipAddress,
+          }),
+
+      ...(command.userAgent === undefined
+        ? {}
+        : {
+            userAgent: command.userAgent,
+          }),
     });
   }
 }

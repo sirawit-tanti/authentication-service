@@ -1,4 +1,6 @@
-export interface RevokeSessionByRefreshTokenInput {
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
+
+export interface RevokeSessionByRefreshTokenInput extends AuditRequestContext {
   refreshTokenHash: string;
   revokedAt: Date;
   reason: string;
