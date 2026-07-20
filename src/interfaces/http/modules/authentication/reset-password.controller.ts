@@ -4,6 +4,7 @@ import { InvalidPasswordResetTokenError } from '@/application/errors/invalid-pas
 import { PasswordResetConflictError } from '@/application/errors/password-reset-conflict.error.js';
 import { PasswordUnchangedError } from '@/application/errors/password-unchanged.error.js';
 import type { ResetPasswordCommand } from '@/application/use-cases/authentication/reset-password.use-case.js';
+import { createRequestAuditContext } from '@/interfaces/http/auditing/request-audit-context.js';
 import { createErrorResponse, type ApiErrorDetail } from '@/shared/http/api-response.js';
 import {
   resetPasswordRequestSchema,
@@ -27,7 +28,6 @@ export function createResetPasswordController(
 ): (request: FastifyRequest<ResetPasswordRouteRequest>, reply: FastifyReply) => Promise<void> {
   return async function resetPasswordController(
     request: FastifyRequest<ResetPasswordRouteRequest>,
-
     reply: FastifyReply,
   ): Promise<void> {
     const validationResult = resetPasswordRequestSchema.safeParse(request.body);
@@ -64,6 +64,8 @@ export function createResetPasswordController(
         token: validationResult.data.token,
 
         newPassword: validationResult.data.newPassword,
+
+        ...createRequestAuditContext(request),
       });
     } catch (error: unknown) {
       if (error instanceof InvalidPasswordResetTokenError) {

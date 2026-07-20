@@ -18,11 +18,16 @@ import { ResetPasswordUseCase } from '../../../src/application/use-cases/authent
 
 const FIXED_NOW = new Date('2026-07-17T00:00:00.000Z');
 
+const TOKEN_ID = '8a7fd086-9458-4332-acab-c38375c8abbd';
+
+const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
+
+const REQUEST_ID = 'reset-password-request-id';
+
 class FakeResetPasswordRepository implements ResetPasswordRepository {
   public request: PasswordResetRequestRecord | null = {
-    tokenId: '8a7fd086-9458-4332-acab-c38375c8abbd',
-
-    userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
+    tokenId: TOKEN_ID,
+    userId: USER_ID,
 
     passwordHash: 'hash:OldPassword#2026',
 
@@ -70,6 +75,7 @@ class FakePasswordResetTokenService implements PasswordResetTokenService {
   public generate(): GeneratedPasswordResetToken {
     return {
       rawToken: 'generated-reset-token',
+
       tokenHash: 'generated-token-hash',
     };
   }
@@ -98,14 +104,19 @@ function createUseCase(repository: FakeResetPasswordRepository): ResetPasswordUs
 }
 
 describe('ResetPasswordUseCase', () => {
-  it('consumes the token and changes the password', async () => {
+  it('consumes the token and passes the audit request context', async () => {
     const repository = new FakeResetPasswordRepository();
 
     const useCase = createUseCase(repository);
 
     await useCase.execute({
       token: ' raw-reset-token ',
+
       newPassword: 'NewPassword#2026',
+
+      requestId: REQUEST_ID,
+      ipAddress: '127.0.0.1',
+      userAgent: 'Vitest',
     });
 
     expect(repository.findInput).toEqual({
@@ -115,11 +126,11 @@ describe('ResetPasswordUseCase', () => {
     });
 
     expect(repository.consumeInput).toEqual({
-      tokenId: '8a7fd086-9458-4332-acab-c38375c8abbd',
+      tokenId: TOKEN_ID,
 
       tokenHash: 'hashed:raw-reset-token',
 
-      userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
+      userId: USER_ID,
 
       expectedUserVersion: 3,
 
@@ -128,7 +139,29 @@ describe('ResetPasswordUseCase', () => {
       passwordChangedAt: FIXED_NOW,
 
       revokeReason: 'Password reset completed',
+
+      requestId: REQUEST_ID,
+      ipAddress: '127.0.0.1',
+      userAgent: 'Vitest',
     });
+  });
+
+  it('omits optional audit fields when they are not supplied', async () => {
+    const repository = new FakeResetPasswordRepository();
+
+    const useCase = createUseCase(repository);
+
+    await useCase.execute({
+      token: 'raw-reset-token',
+
+      newPassword: 'NewPassword#2026',
+    });
+
+    expect(repository.consumeInput).not.toHaveProperty('requestId');
+
+    expect(repository.consumeInput).not.toHaveProperty('ipAddress');
+
+    expect(repository.consumeInput).not.toHaveProperty('userAgent');
   });
 
   it('rejects an invalid or expired token', async () => {
@@ -141,6 +174,7 @@ describe('ResetPasswordUseCase', () => {
     await expect(
       useCase.execute({
         token: 'invalid-token',
+
         newPassword: 'NewPassword#2026',
       }),
     ).rejects.toBeInstanceOf(InvalidPasswordResetTokenError);
@@ -156,6 +190,7 @@ describe('ResetPasswordUseCase', () => {
     await expect(
       useCase.execute({
         token: 'raw-reset-token',
+
         newPassword: 'OldPassword#2026',
       }),
     ).rejects.toBeInstanceOf(PasswordUnchangedError);
@@ -173,6 +208,7 @@ describe('ResetPasswordUseCase', () => {
     await expect(
       useCase.execute({
         token: 'raw-reset-token',
+
         newPassword: 'NewPassword#2026',
       }),
     ).rejects.toBeInstanceOf(PasswordResetConflictError);
@@ -188,6 +224,7 @@ describe('ResetPasswordUseCase', () => {
     await expect(
       useCase.execute({
         token: 'raw-reset-token',
+
         newPassword: 'NewPassword#2026',
       }),
     ).rejects.toBeInstanceOf(InvalidPasswordResetTokenError);

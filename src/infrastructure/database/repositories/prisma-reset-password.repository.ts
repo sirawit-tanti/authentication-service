@@ -1,3 +1,4 @@
+import { SECURITY_AUDIT_ACTIONS } from '@/application/auditing/security-audit-action.js';
 import type {
   ConsumePasswordResetInput,
   ConsumePasswordResetResult,
@@ -6,6 +7,8 @@ import type {
   ResetPasswordRepository,
 } from '@/application/ports/repositories/reset-password.repository.js';
 import type { ApplicationPrismaClient } from '../prisma-client.js';
+
+const USER_RESOURCE_TYPE = 'USER';
 
 class InvalidResetTokenPersistenceError extends Error {
   public constructor() {
@@ -80,11 +83,6 @@ export class PrismaResetPasswordRepository implements ResetPasswordRepository {
     try {
       await this.prisma.$transaction(
         async (transaction) => {
-          /*
-           * Consume token ก่อนด้วย conditional update
-           * หากขั้นต่อไปผิดพลาด transaction จะ rollback
-           * ทำให้ usedAt ไม่ถูกบันทึกค้างไว้
-           */
           const tokenUpdate = await transaction.passwordResetToken.updateMany({
             where: {
               id: input.tokenId,
@@ -137,10 +135,6 @@ export class PrismaResetPasswordRepository implements ResetPasswordRepository {
             throw new PasswordResetConflictPersistenceError();
           }
 
-          /*
-           * ปิด reset token อื่นของ user
-           * เพื่อให้เหลือ token ที่ใช้งานได้เป็นศูนย์
-           */
           await transaction.passwordResetToken.updateMany({
             where: {
               userId: input.userId,
@@ -152,9 +146,11 @@ export class PrismaResetPasswordRepository implements ResetPasswordRepository {
             },
           });
 
-          const sessions = await transaction.session.findMany({
+          const activeSessions = await transaction.session.findMany({
             where: {
               userId: input.userId,
+              status: 'ACTIVE',
+              revokedAt: null,
             },
 
             select: {
@@ -162,15 +158,16 @@ export class PrismaResetPasswordRepository implements ResetPasswordRepository {
             },
           });
 
-          const sessionIds = sessions.map((session): string => session.id);
+          const activeSessionIds = activeSessions.map((session): string => session.id);
 
-          if (sessionIds.length > 0) {
+          if (activeSessionIds.length > 0) {
             await transaction.session.updateMany({
               where: {
                 id: {
-                  in: sessionIds,
+                  in: activeSessionIds,
                 },
 
+                userId: input.userId,
                 status: 'ACTIVE',
                 revokedAt: null,
               },
@@ -191,7 +188,7 @@ export class PrismaResetPasswordRepository implements ResetPasswordRepository {
             await transaction.refreshToken.updateMany({
               where: {
                 sessionId: {
-                  in: sessionIds,
+                  in: activeSessionIds,
                 },
 
                 revokedAt: null,
@@ -204,6 +201,46 @@ export class PrismaResetPasswordRepository implements ResetPasswordRepository {
               },
             });
           }
+
+          await transaction.auditLog.create({
+            data: {
+              actorUserId: input.userId,
+
+              action: SECURITY_AUDIT_ACTIONS.PASSWORD_RESET_COMPLETED,
+
+              resourceType: USER_RESOURCE_TYPE,
+
+              resourceId: input.userId,
+
+              outcome: 'SUCCESS',
+
+              createdAt: input.passwordChangedAt,
+
+              metadata: {
+                passwordResetTokenId: input.tokenId,
+
+                revokedSessionCount: activeSessionIds.length,
+              },
+
+              ...(input.requestId === undefined
+                ? {}
+                : {
+                    requestId: input.requestId,
+                  }),
+
+              ...(input.ipAddress === undefined
+                ? {}
+                : {
+                    ipAddress: input.ipAddress,
+                  }),
+
+              ...(input.userAgent === undefined
+                ? {}
+                : {
+                    userAgent: input.userAgent,
+                  }),
+            },
+          });
         },
         {
           maxWait: 2_000,

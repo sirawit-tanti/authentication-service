@@ -1,3 +1,5 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
+
 export interface FindPasswordResetRequestInput {
   tokenHash: string;
   checkedAt: Date;
@@ -10,7 +12,7 @@ export interface PasswordResetRequestRecord {
   userVersion: number;
 }
 
-export interface ConsumePasswordResetInput {
+export interface ConsumePasswordResetInput extends AuditRequestContext {
   tokenId: string;
   tokenHash: string;
   userId: string;

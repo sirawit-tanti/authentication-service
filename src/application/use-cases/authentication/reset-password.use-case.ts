@@ -1,3 +1,4 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 import { InvalidPasswordResetTokenError } from '@/application/errors/invalid-password-reset-token.error.js';
 import { PasswordResetConflictError } from '@/application/errors/password-reset-conflict.error.js';
 import { PasswordUnchangedError } from '@/application/errors/password-unchanged.error.js';
@@ -8,7 +9,7 @@ import type { Clock } from '@/application/ports/system/clock.js';
 
 const PASSWORD_RESET_REVOKE_REASON = 'Password reset completed';
 
-export interface ResetPasswordCommand {
+export interface ResetPasswordCommand extends AuditRequestContext {
   token: string;
   newPassword: string;
 }
@@ -22,14 +23,20 @@ export interface ResetPasswordUseCaseDependencies {
 
 export class ResetPasswordUseCase {
   private readonly repository: ResetPasswordRepository;
+
   private readonly passwordHasher: PasswordHasher;
+
   private readonly passwordResetTokenService: PasswordResetTokenService;
+
   private readonly clock: Clock;
 
   public constructor(dependencies: ResetPasswordUseCaseDependencies) {
     this.repository = dependencies.repository;
+
     this.passwordHasher = dependencies.passwordHasher;
+
     this.passwordResetTokenService = dependencies.passwordResetTokenService;
+
     this.clock = dependencies.clock;
   }
 
@@ -72,9 +79,28 @@ export class ResetPasswordUseCase {
       expectedUserVersion: resetRequest.userVersion,
 
       newPasswordHash,
+
       passwordChangedAt: checkedAt,
 
       revokeReason: PASSWORD_RESET_REVOKE_REASON,
+
+      ...(command.requestId === undefined
+        ? {}
+        : {
+            requestId: command.requestId,
+          }),
+
+      ...(command.ipAddress === undefined
+        ? {}
+        : {
+            ipAddress: command.ipAddress,
+          }),
+
+      ...(command.userAgent === undefined
+        ? {}
+        : {
+            userAgent: command.userAgent,
+          }),
     });
 
     if (result === 'INVALID_TOKEN') {
