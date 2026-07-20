@@ -1,9 +1,10 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 import { InvalidCredentialsError } from '@/application/errors/invalid-credentials.error.js';
 import { OptimisticConcurrencyError } from '@/application/errors/optimistic-concurrency.error.js';
 import type { AuthenticationTokenPair } from '@/application/models/authentication-token-pair.js';
 import type { AccessTokenService } from '@/application/ports/authentication/access-token-service.js';
-import type { RefreshTokenService } from '@/application/ports/authentication/refresh-token-service.js';
 import type { PasswordHasher } from '@/application/ports/authentication/password-hasher.js';
+import type { RefreshTokenService } from '@/application/ports/authentication/refresh-token-service.js';
 import type { LoginSessionRepository } from '@/application/ports/repositories/login-session.repository.js';
 import type { UserRepository } from '@/application/ports/repositories/user.repository.js';
 import type { Clock } from '@/application/ports/system/clock.js';
@@ -11,7 +12,6 @@ import type { IdGenerator } from '@/application/ports/system/id-generator.js';
 import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
 import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 import type { User } from '@/domain/users/entities/user.entity.js';
-import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 
 export interface LoginUserCommand extends AuditRequestContext {
   applicationId: string;
@@ -114,6 +114,7 @@ export class LoginUserUseCase {
     this.refreshTokenService = dependencies.refreshTokenService;
 
     this.idGenerator = dependencies.idGenerator;
+
     this.clock = dependencies.clock;
 
     this.dummyPasswordHash = dependencies.dummyPasswordHash;
@@ -147,7 +148,11 @@ export class LoginUserUseCase {
     }
 
     if (!passwordMatches) {
-      await this.recordFailedLogin(user, now);
+      await this.recordFailedLogin({
+        user,
+        now,
+        command,
+      });
 
       throw new InvalidCredentialsError();
     }
@@ -227,6 +232,7 @@ export class LoginUserUseCase {
 
       tokens: {
         accessToken,
+
         refreshToken: refreshToken.rawToken,
 
         tokenType: 'Bearer',
@@ -252,23 +258,57 @@ export class LoginUserUseCase {
     }
   }
 
-  private async recordFailedLogin(user: User, now: Date): Promise<void> {
-    if (user.getStatus() !== 'ACTIVE' || !user.isEmailVerified()) {
+  private async recordFailedLogin(input: {
+    user: User;
+    now: Date;
+    command: LoginUserCommand;
+  }): Promise<void> {
+    if (input.user.getStatus() !== 'ACTIVE' || !input.user.isEmailVerified()) {
       return;
     }
 
-    const expectedVersion = user.getVersion();
+    const expectedVersion = input.user.getVersion();
 
-    user.recordFailedLogin({
+    const wasLockedBeforeAttempt = input.user.isLocked(input.now);
+
+    input.user.recordFailedLogin({
       maximumAttempts: this.maximumFailedAttempts,
 
       lockDurationMilliseconds: this.lockDurationMilliseconds,
 
-      now,
+      now: input.now,
     });
 
+    const accountLocked = !wasLockedBeforeAttempt && input.user.isLocked(input.now);
+
     try {
-      await this.userRepository.update(user, expectedVersion);
+      await this.userRepository.recordFailedLogin({
+        user: input.user,
+        expectedVersion,
+
+        applicationId: input.command.applicationId,
+
+        failedAt: input.now,
+        accountLocked,
+
+        ...(input.command.requestId === undefined
+          ? {}
+          : {
+              requestId: input.command.requestId,
+            }),
+
+        ...(input.command.ipAddress === undefined
+          ? {}
+          : {
+              ipAddress: input.command.ipAddress,
+            }),
+
+        ...(input.command.userAgent === undefined
+          ? {}
+          : {
+              userAgent: input.command.userAgent,
+            }),
+      });
     } catch (error: unknown) {
       if (!(error instanceof OptimisticConcurrencyError)) {
         throw error;

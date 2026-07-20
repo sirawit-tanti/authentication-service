@@ -15,7 +15,10 @@ import type {
   CreateLoginSessionInput,
   LoginSessionRepository,
 } from '../../../src/application/ports/repositories/login-session.repository.js';
-import type { UserRepository } from '../../../src/application/ports/repositories/user.repository.js';
+import type {
+  RecordFailedLoginInput,
+  UserRepository,
+} from '../../../src/application/ports/repositories/user.repository.js';
 import type { Clock } from '../../../src/application/ports/system/clock.js';
 import type { IdGenerator } from '../../../src/application/ports/system/id-generator.js';
 import { LoginUserUseCase } from '../../../src/application/use-cases/authentication/login-user.use-case.js';
@@ -53,6 +56,8 @@ class FakeUserRepository implements UserRepository {
 
   public expectedVersion: number | null = null;
 
+  public failedLoginInput: RecordFailedLoginInput | null = null;
+
   public findById(userId: string): Promise<User | null> {
     void userId;
 
@@ -79,7 +84,18 @@ class FakeUserRepository implements UserRepository {
 
   public update(user: User, expectedVersion: number): Promise<void> {
     this.updatedUser = user;
+
     this.expectedVersion = expectedVersion;
+
+    return Promise.resolve();
+  }
+
+  public recordFailedLogin(input: RecordFailedLoginInput): Promise<void> {
+    this.failedLoginInput = input;
+
+    this.updatedUser = input.user;
+
+    this.expectedVersion = input.expectedVersion;
 
     return Promise.resolve();
   }
@@ -147,7 +163,9 @@ class FakeRefreshTokenService implements RefreshTokenService {
   public generate(): GeneratedRefreshToken {
     return {
       rawToken: 'test-refresh-token',
+
       tokenHash: 'test-refresh-token-hash',
+
       jti: REFRESH_TOKEN_JTI,
     };
   }
@@ -190,6 +208,7 @@ function createActiveUser(): User {
     email: EmailAddress.create('sirawit@example.com'),
 
     passwordHash: VALID_TEST_PASSWORD_HASH,
+
     now: createdAt,
   });
 
@@ -200,9 +219,13 @@ function createActiveUser(): User {
 
 interface TestContext {
   userRepository: FakeUserRepository;
+
   loginSessionRepository: FakeLoginSessionRepository;
+
   passwordHasher: FakePasswordHasher;
+
   accessTokenService: FakeAccessTokenService;
+
   useCase: LoginUserUseCase;
 }
 
@@ -252,8 +275,11 @@ describe('LoginUserUseCase', () => {
 
     const result = await context.useCase.execute({
       applicationId: APPLICATION_ID,
+
       email: '  Sirawit@Example.com  ',
+
       password: VALID_TEST_PASSWORD,
+
       requestId: REQUEST_ID,
       ipAddress: '127.0.0.1',
       userAgent: 'Vitest',
@@ -261,8 +287,11 @@ describe('LoginUserUseCase', () => {
 
     const expectedTokens: AuthenticationTokenPair = {
       accessToken: 'test-access-token',
+
       refreshToken: 'test-refresh-token',
+
       tokenType: 'Bearer',
+
       accessTokenExpiresInSeconds: 900,
 
       refreshTokenExpiresAt: EXPECTED_REFRESH_TOKEN_EXPIRES_AT,
@@ -294,13 +323,21 @@ describe('LoginUserUseCase', () => {
       expectedUserVersion: 2,
       sessionId: SESSION_ID,
       applicationId: APPLICATION_ID,
+
       refreshTokenId: REFRESH_TOKEN_ID,
+
       refreshTokenFamilyId: REFRESH_TOKEN_FAMILY_ID,
+
       refreshTokenJti: REFRESH_TOKEN_JTI,
+
       refreshTokenHash: 'test-refresh-token-hash',
+
       createdAt: FIXED_NOW,
+
       sessionExpiresAt: EXPECTED_REFRESH_TOKEN_EXPIRES_AT,
+
       refreshTokenExpiresAt: EXPECTED_REFRESH_TOKEN_EXPIRES_AT,
+
       requestId: REQUEST_ID,
       ipAddress: '127.0.0.1',
       userAgent: 'Vitest',
@@ -311,6 +348,8 @@ describe('LoginUserUseCase', () => {
     expect(context.loginSessionRepository.input?.user.getLastLoginAt()).toEqual(FIXED_NOW);
 
     expect(context.loginSessionRepository.input?.user.getFailedLoginAttempts()).toBe(0);
+
+    expect(context.userRepository.failedLoginInput).toBeNull();
   });
 
   it('uses the dummy password hash when the user does not exist', async () => {
@@ -321,8 +360,14 @@ describe('LoginUserUseCase', () => {
     await expect(
       context.useCase.execute({
         applicationId: APPLICATION_ID,
+
         email: 'missing@example.com',
+
         password: VALID_TEST_PASSWORD,
+
+        requestId: REQUEST_ID,
+        ipAddress: '127.0.0.1',
+        userAgent: 'Vitest',
       }),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
 
@@ -333,6 +378,8 @@ describe('LoginUserUseCase', () => {
     });
 
     expect(context.loginSessionRepository.input).toBeNull();
+
+    expect(context.userRepository.failedLoginInput).toBeNull();
   });
 
   it('rejects an invalid email without revealing account existence', async () => {
@@ -341,8 +388,14 @@ describe('LoginUserUseCase', () => {
     await expect(
       context.useCase.execute({
         applicationId: APPLICATION_ID,
+
         email: 'invalid-email',
+
         password: VALID_TEST_PASSWORD,
+
+        requestId: REQUEST_ID,
+        ipAddress: '127.0.0.1',
+        userAgent: 'Vitest',
       }),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
 
@@ -352,10 +405,10 @@ describe('LoginUserUseCase', () => {
       passwordHash: DUMMY_PASSWORD_HASH,
     });
 
-    expect(context.loginSessionRepository.input).toBeNull();
+    expect(context.userRepository.failedLoginInput).toBeNull();
   });
 
-  it('records a failed login when the password is incorrect', async () => {
+  it('records a failed login with audit context when the password is incorrect', async () => {
     const context = createTestContext();
 
     context.userRepository.user = createActiveUser();
@@ -363,20 +416,41 @@ describe('LoginUserUseCase', () => {
     await expect(
       context.useCase.execute({
         applicationId: APPLICATION_ID,
+
         email: 'sirawit@example.com',
+
         password: 'IncorrectTestOnly#2026',
+
+        requestId: REQUEST_ID,
+        ipAddress: '127.0.0.1',
+        userAgent: 'Vitest',
       }),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
 
-    expect(context.userRepository.updatedUser?.getFailedLoginAttempts()).toBe(1);
+    expect(context.userRepository.failedLoginInput).toMatchObject({
+      expectedVersion: 2,
 
-    expect(context.userRepository.expectedVersion).toBe(2);
+      applicationId: APPLICATION_ID,
+
+      failedAt: FIXED_NOW,
+
+      accountLocked: false,
+
+      requestId: REQUEST_ID,
+      ipAddress: '127.0.0.1',
+      userAgent: 'Vitest',
+    });
+
+    expect(context.userRepository.failedLoginInput?.user).toBe(context.userRepository.user);
+
+    expect(context.userRepository.failedLoginInput?.user.getFailedLoginAttempts()).toBe(1);
 
     expect(context.loginSessionRepository.input).toBeNull();
   });
 
-  it('locks the user after reaching the maximum failed attempts', async () => {
+  it('marks the failed login as account locking when the maximum attempts are reached', async () => {
     const context = createTestContext();
+
     const user = createActiveUser();
 
     user.recordFailedLogin({
@@ -400,17 +474,65 @@ describe('LoginUserUseCase', () => {
     await expect(
       context.useCase.execute({
         applicationId: APPLICATION_ID,
+
         email: 'sirawit@example.com',
+
         password: 'IncorrectTestOnly#2026',
+
+        requestId: REQUEST_ID,
+        ipAddress: '127.0.0.1',
+        userAgent: 'Vitest',
       }),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
 
-    expect(context.userRepository.updatedUser?.isLocked(FIXED_NOW)).toBe(true);
+    expect(context.userRepository.failedLoginInput).toMatchObject({
+      expectedVersion: 4,
+
+      applicationId: APPLICATION_ID,
+
+      failedAt: FIXED_NOW,
+
+      accountLocked: true,
+
+      requestId: REQUEST_ID,
+      ipAddress: '127.0.0.1',
+      userAgent: 'Vitest',
+    });
+
+    expect(context.userRepository.failedLoginInput?.user.getFailedLoginAttempts()).toBe(3);
+
+    expect(context.userRepository.failedLoginInput?.user.isLocked(FIXED_NOW)).toBe(true);
+
+    expect(context.userRepository.failedLoginInput?.user.getLockedUntil()).toEqual(
+      new Date('2026-07-16T00:15:00.000Z'),
+    );
 
     expect(context.loginSessionRepository.input).toBeNull();
   });
 
-  it('rejects a user whose email is not verified', async () => {
+  it('omits optional audit context when it is not supplied', async () => {
+    const context = createTestContext();
+
+    context.userRepository.user = createActiveUser();
+
+    await expect(
+      context.useCase.execute({
+        applicationId: APPLICATION_ID,
+
+        email: 'sirawit@example.com',
+
+        password: 'IncorrectTestOnly#2026',
+      }),
+    ).rejects.toBeInstanceOf(InvalidCredentialsError);
+
+    expect(context.userRepository.failedLoginInput).not.toHaveProperty('requestId');
+
+    expect(context.userRepository.failedLoginInput).not.toHaveProperty('ipAddress');
+
+    expect(context.userRepository.failedLoginInput).not.toHaveProperty('userAgent');
+  });
+
+  it('rejects a user whose email is not verified without recording a failed login', async () => {
     const context = createTestContext();
 
     context.userRepository.user = User.createPending({
@@ -426,16 +548,21 @@ describe('LoginUserUseCase', () => {
     await expect(
       context.useCase.execute({
         applicationId: APPLICATION_ID,
+
         email: 'sirawit@example.com',
+
         password: VALID_TEST_PASSWORD,
       }),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
 
+    expect(context.userRepository.failedLoginInput).toBeNull();
+
     expect(context.loginSessionRepository.input).toBeNull();
   });
 
-  it('rejects an active lock even when the password is correct', async () => {
+  it('rejects an active lock even when the password is correct without recording another failed login', async () => {
     const context = createTestContext();
+
     const user = createActiveUser();
 
     user.recordFailedLogin({
@@ -451,10 +578,14 @@ describe('LoginUserUseCase', () => {
     await expect(
       context.useCase.execute({
         applicationId: APPLICATION_ID,
+
         email: 'sirawit@example.com',
+
         password: VALID_TEST_PASSWORD,
       }),
     ).rejects.toBeInstanceOf(InvalidCredentialsError);
+
+    expect(context.userRepository.failedLoginInput).toBeNull();
 
     expect(context.loginSessionRepository.input).toBeNull();
   });
