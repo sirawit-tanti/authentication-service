@@ -201,6 +201,7 @@ export type ApplicationWhereInput = {
   roles?: Prisma.RoleListRelationFilter
   permissions?: Prisma.PermissionListRelationFilter
   sessions?: Prisma.SessionListRelationFilter
+  auditLogs?: Prisma.AuditLogListRelationFilter
   apiKeys?: Prisma.ApiKeyListRelationFilter
   oauthClients?: Prisma.OAuthClientListRelationFilter
 }
@@ -216,6 +217,7 @@ export type ApplicationOrderByWithRelationInput = {
   roles?: Prisma.RoleOrderByRelationAggregateInput
   permissions?: Prisma.PermissionOrderByRelationAggregateInput
   sessions?: Prisma.SessionOrderByRelationAggregateInput
+  auditLogs?: Prisma.AuditLogOrderByRelationAggregateInput
   apiKeys?: Prisma.ApiKeyOrderByRelationAggregateInput
   oauthClients?: Prisma.OAuthClientOrderByRelationAggregateInput
 }
@@ -234,6 +236,7 @@ export type ApplicationWhereUniqueInput = Prisma.AtLeast<{
   roles?: Prisma.RoleListRelationFilter
   permissions?: Prisma.PermissionListRelationFilter
   sessions?: Prisma.SessionListRelationFilter
+  auditLogs?: Prisma.AuditLogListRelationFilter
   apiKeys?: Prisma.ApiKeyListRelationFilter
   oauthClients?: Prisma.OAuthClientListRelationFilter
 }, "id" | "code">
@@ -275,6 +278,7 @@ export type ApplicationCreateInput = {
   roles?: Prisma.RoleCreateNestedManyWithoutApplicationInput
   permissions?: Prisma.PermissionCreateNestedManyWithoutApplicationInput
   sessions?: Prisma.SessionCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogCreateNestedManyWithoutApplicationInput
   apiKeys?: Prisma.ApiKeyCreateNestedManyWithoutApplicationInput
   oauthClients?: Prisma.OAuthClientCreateNestedManyWithoutApplicationInput
 }
@@ -290,6 +294,7 @@ export type ApplicationUncheckedCreateInput = {
   roles?: Prisma.RoleUncheckedCreateNestedManyWithoutApplicationInput
   permissions?: Prisma.PermissionUncheckedCreateNestedManyWithoutApplicationInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutApplicationInput
   apiKeys?: Prisma.ApiKeyUncheckedCreateNestedManyWithoutApplicationInput
   oauthClients?: Prisma.OAuthClientUncheckedCreateNestedManyWithoutApplicationInput
 }
@@ -305,6 +310,7 @@ export type ApplicationUpdateInput = {
   roles?: Prisma.RoleUpdateManyWithoutApplicationNestedInput
   permissions?: Prisma.PermissionUpdateManyWithoutApplicationNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUpdateManyWithoutApplicationNestedInput
   apiKeys?: Prisma.ApiKeyUpdateManyWithoutApplicationNestedInput
   oauthClients?: Prisma.OAuthClientUpdateManyWithoutApplicationNestedInput
 }
@@ -320,6 +326,7 @@ export type ApplicationUncheckedUpdateInput = {
   roles?: Prisma.RoleUncheckedUpdateManyWithoutApplicationNestedInput
   permissions?: Prisma.PermissionUncheckedUpdateManyWithoutApplicationNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUncheckedUpdateManyWithoutApplicationNestedInput
   apiKeys?: Prisma.ApiKeyUncheckedUpdateManyWithoutApplicationNestedInput
   oauthClients?: Prisma.OAuthClientUncheckedUpdateManyWithoutApplicationNestedInput
 }
@@ -389,6 +396,11 @@ export type ApplicationScalarRelationFilter = {
   isNot?: Prisma.ApplicationWhereInput
 }
 
+export type ApplicationNullableScalarRelationFilter = {
+  is?: Prisma.ApplicationWhereInput | null
+  isNot?: Prisma.ApplicationWhereInput | null
+}
+
 export type ApplicationCreateNestedOneWithoutRolesInput = {
   create?: Prisma.XOR<Prisma.ApplicationCreateWithoutRolesInput, Prisma.ApplicationUncheckedCreateWithoutRolesInput>
   connectOrCreate?: Prisma.ApplicationCreateOrConnectWithoutRolesInput
@@ -431,6 +443,22 @@ export type ApplicationUpdateOneRequiredWithoutSessionsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.ApplicationUpdateToOneWithWhereWithoutSessionsInput, Prisma.ApplicationUpdateWithoutSessionsInput>, Prisma.ApplicationUncheckedUpdateWithoutSessionsInput>
 }
 
+export type ApplicationCreateNestedOneWithoutAuditLogsInput = {
+  create?: Prisma.XOR<Prisma.ApplicationCreateWithoutAuditLogsInput, Prisma.ApplicationUncheckedCreateWithoutAuditLogsInput>
+  connectOrCreate?: Prisma.ApplicationCreateOrConnectWithoutAuditLogsInput
+  connect?: Prisma.ApplicationWhereUniqueInput
+}
+
+export type ApplicationUpdateOneWithoutAuditLogsNestedInput = {
+  create?: Prisma.XOR<Prisma.ApplicationCreateWithoutAuditLogsInput, Prisma.ApplicationUncheckedCreateWithoutAuditLogsInput>
+  connectOrCreate?: Prisma.ApplicationCreateOrConnectWithoutAuditLogsInput
+  upsert?: Prisma.ApplicationUpsertWithoutAuditLogsInput
+  disconnect?: Prisma.ApplicationWhereInput | boolean
+  delete?: Prisma.ApplicationWhereInput | boolean
+  connect?: Prisma.ApplicationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ApplicationUpdateToOneWithWhereWithoutAuditLogsInput, Prisma.ApplicationUpdateWithoutAuditLogsInput>, Prisma.ApplicationUncheckedUpdateWithoutAuditLogsInput>
+}
+
 export type ApplicationCreateNestedOneWithoutApiKeysInput = {
   create?: Prisma.XOR<Prisma.ApplicationCreateWithoutApiKeysInput, Prisma.ApplicationUncheckedCreateWithoutApiKeysInput>
   connectOrCreate?: Prisma.ApplicationCreateOrConnectWithoutApiKeysInput
@@ -469,6 +497,7 @@ export type ApplicationCreateWithoutRolesInput = {
   updatedAt?: Date | string
   permissions?: Prisma.PermissionCreateNestedManyWithoutApplicationInput
   sessions?: Prisma.SessionCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogCreateNestedManyWithoutApplicationInput
   apiKeys?: Prisma.ApiKeyCreateNestedManyWithoutApplicationInput
   oauthClients?: Prisma.OAuthClientCreateNestedManyWithoutApplicationInput
 }
@@ -483,6 +512,7 @@ export type ApplicationUncheckedCreateWithoutRolesInput = {
   updatedAt?: Date | string
   permissions?: Prisma.PermissionUncheckedCreateNestedManyWithoutApplicationInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutApplicationInput
   apiKeys?: Prisma.ApiKeyUncheckedCreateNestedManyWithoutApplicationInput
   oauthClients?: Prisma.OAuthClientUncheckedCreateNestedManyWithoutApplicationInput
 }
@@ -513,6 +543,7 @@ export type ApplicationUpdateWithoutRolesInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   permissions?: Prisma.PermissionUpdateManyWithoutApplicationNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUpdateManyWithoutApplicationNestedInput
   apiKeys?: Prisma.ApiKeyUpdateManyWithoutApplicationNestedInput
   oauthClients?: Prisma.OAuthClientUpdateManyWithoutApplicationNestedInput
 }
@@ -527,6 +558,7 @@ export type ApplicationUncheckedUpdateWithoutRolesInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   permissions?: Prisma.PermissionUncheckedUpdateManyWithoutApplicationNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUncheckedUpdateManyWithoutApplicationNestedInput
   apiKeys?: Prisma.ApiKeyUncheckedUpdateManyWithoutApplicationNestedInput
   oauthClients?: Prisma.OAuthClientUncheckedUpdateManyWithoutApplicationNestedInput
 }
@@ -541,6 +573,7 @@ export type ApplicationCreateWithoutPermissionsInput = {
   updatedAt?: Date | string
   roles?: Prisma.RoleCreateNestedManyWithoutApplicationInput
   sessions?: Prisma.SessionCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogCreateNestedManyWithoutApplicationInput
   apiKeys?: Prisma.ApiKeyCreateNestedManyWithoutApplicationInput
   oauthClients?: Prisma.OAuthClientCreateNestedManyWithoutApplicationInput
 }
@@ -555,6 +588,7 @@ export type ApplicationUncheckedCreateWithoutPermissionsInput = {
   updatedAt?: Date | string
   roles?: Prisma.RoleUncheckedCreateNestedManyWithoutApplicationInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutApplicationInput
   apiKeys?: Prisma.ApiKeyUncheckedCreateNestedManyWithoutApplicationInput
   oauthClients?: Prisma.OAuthClientUncheckedCreateNestedManyWithoutApplicationInput
 }
@@ -585,6 +619,7 @@ export type ApplicationUpdateWithoutPermissionsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   roles?: Prisma.RoleUpdateManyWithoutApplicationNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUpdateManyWithoutApplicationNestedInput
   apiKeys?: Prisma.ApiKeyUpdateManyWithoutApplicationNestedInput
   oauthClients?: Prisma.OAuthClientUpdateManyWithoutApplicationNestedInput
 }
@@ -599,6 +634,7 @@ export type ApplicationUncheckedUpdateWithoutPermissionsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   roles?: Prisma.RoleUncheckedUpdateManyWithoutApplicationNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUncheckedUpdateManyWithoutApplicationNestedInput
   apiKeys?: Prisma.ApiKeyUncheckedUpdateManyWithoutApplicationNestedInput
   oauthClients?: Prisma.OAuthClientUncheckedUpdateManyWithoutApplicationNestedInput
 }
@@ -613,6 +649,7 @@ export type ApplicationCreateWithoutSessionsInput = {
   updatedAt?: Date | string
   roles?: Prisma.RoleCreateNestedManyWithoutApplicationInput
   permissions?: Prisma.PermissionCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogCreateNestedManyWithoutApplicationInput
   apiKeys?: Prisma.ApiKeyCreateNestedManyWithoutApplicationInput
   oauthClients?: Prisma.OAuthClientCreateNestedManyWithoutApplicationInput
 }
@@ -627,6 +664,7 @@ export type ApplicationUncheckedCreateWithoutSessionsInput = {
   updatedAt?: Date | string
   roles?: Prisma.RoleUncheckedCreateNestedManyWithoutApplicationInput
   permissions?: Prisma.PermissionUncheckedCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutApplicationInput
   apiKeys?: Prisma.ApiKeyUncheckedCreateNestedManyWithoutApplicationInput
   oauthClients?: Prisma.OAuthClientUncheckedCreateNestedManyWithoutApplicationInput
 }
@@ -657,6 +695,7 @@ export type ApplicationUpdateWithoutSessionsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   roles?: Prisma.RoleUpdateManyWithoutApplicationNestedInput
   permissions?: Prisma.PermissionUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUpdateManyWithoutApplicationNestedInput
   apiKeys?: Prisma.ApiKeyUpdateManyWithoutApplicationNestedInput
   oauthClients?: Prisma.OAuthClientUpdateManyWithoutApplicationNestedInput
 }
@@ -671,6 +710,83 @@ export type ApplicationUncheckedUpdateWithoutSessionsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   roles?: Prisma.RoleUncheckedUpdateManyWithoutApplicationNestedInput
   permissions?: Prisma.PermissionUncheckedUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUncheckedUpdateManyWithoutApplicationNestedInput
+  apiKeys?: Prisma.ApiKeyUncheckedUpdateManyWithoutApplicationNestedInput
+  oauthClients?: Prisma.OAuthClientUncheckedUpdateManyWithoutApplicationNestedInput
+}
+
+export type ApplicationCreateWithoutAuditLogsInput = {
+  id?: string
+  code: string
+  name: string
+  description?: string | null
+  isActive?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  roles?: Prisma.RoleCreateNestedManyWithoutApplicationInput
+  permissions?: Prisma.PermissionCreateNestedManyWithoutApplicationInput
+  sessions?: Prisma.SessionCreateNestedManyWithoutApplicationInput
+  apiKeys?: Prisma.ApiKeyCreateNestedManyWithoutApplicationInput
+  oauthClients?: Prisma.OAuthClientCreateNestedManyWithoutApplicationInput
+}
+
+export type ApplicationUncheckedCreateWithoutAuditLogsInput = {
+  id?: string
+  code: string
+  name: string
+  description?: string | null
+  isActive?: boolean
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  roles?: Prisma.RoleUncheckedCreateNestedManyWithoutApplicationInput
+  permissions?: Prisma.PermissionUncheckedCreateNestedManyWithoutApplicationInput
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutApplicationInput
+  apiKeys?: Prisma.ApiKeyUncheckedCreateNestedManyWithoutApplicationInput
+  oauthClients?: Prisma.OAuthClientUncheckedCreateNestedManyWithoutApplicationInput
+}
+
+export type ApplicationCreateOrConnectWithoutAuditLogsInput = {
+  where: Prisma.ApplicationWhereUniqueInput
+  create: Prisma.XOR<Prisma.ApplicationCreateWithoutAuditLogsInput, Prisma.ApplicationUncheckedCreateWithoutAuditLogsInput>
+}
+
+export type ApplicationUpsertWithoutAuditLogsInput = {
+  update: Prisma.XOR<Prisma.ApplicationUpdateWithoutAuditLogsInput, Prisma.ApplicationUncheckedUpdateWithoutAuditLogsInput>
+  create: Prisma.XOR<Prisma.ApplicationCreateWithoutAuditLogsInput, Prisma.ApplicationUncheckedCreateWithoutAuditLogsInput>
+  where?: Prisma.ApplicationWhereInput
+}
+
+export type ApplicationUpdateToOneWithWhereWithoutAuditLogsInput = {
+  where?: Prisma.ApplicationWhereInput
+  data: Prisma.XOR<Prisma.ApplicationUpdateWithoutAuditLogsInput, Prisma.ApplicationUncheckedUpdateWithoutAuditLogsInput>
+}
+
+export type ApplicationUpdateWithoutAuditLogsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  code?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  roles?: Prisma.RoleUpdateManyWithoutApplicationNestedInput
+  permissions?: Prisma.PermissionUpdateManyWithoutApplicationNestedInput
+  sessions?: Prisma.SessionUpdateManyWithoutApplicationNestedInput
+  apiKeys?: Prisma.ApiKeyUpdateManyWithoutApplicationNestedInput
+  oauthClients?: Prisma.OAuthClientUpdateManyWithoutApplicationNestedInput
+}
+
+export type ApplicationUncheckedUpdateWithoutAuditLogsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  code?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  isActive?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  roles?: Prisma.RoleUncheckedUpdateManyWithoutApplicationNestedInput
+  permissions?: Prisma.PermissionUncheckedUpdateManyWithoutApplicationNestedInput
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutApplicationNestedInput
   apiKeys?: Prisma.ApiKeyUncheckedUpdateManyWithoutApplicationNestedInput
   oauthClients?: Prisma.OAuthClientUncheckedUpdateManyWithoutApplicationNestedInput
 }
@@ -686,6 +802,7 @@ export type ApplicationCreateWithoutApiKeysInput = {
   roles?: Prisma.RoleCreateNestedManyWithoutApplicationInput
   permissions?: Prisma.PermissionCreateNestedManyWithoutApplicationInput
   sessions?: Prisma.SessionCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogCreateNestedManyWithoutApplicationInput
   oauthClients?: Prisma.OAuthClientCreateNestedManyWithoutApplicationInput
 }
 
@@ -700,6 +817,7 @@ export type ApplicationUncheckedCreateWithoutApiKeysInput = {
   roles?: Prisma.RoleUncheckedCreateNestedManyWithoutApplicationInput
   permissions?: Prisma.PermissionUncheckedCreateNestedManyWithoutApplicationInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutApplicationInput
   oauthClients?: Prisma.OAuthClientUncheckedCreateNestedManyWithoutApplicationInput
 }
 
@@ -730,6 +848,7 @@ export type ApplicationUpdateWithoutApiKeysInput = {
   roles?: Prisma.RoleUpdateManyWithoutApplicationNestedInput
   permissions?: Prisma.PermissionUpdateManyWithoutApplicationNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUpdateManyWithoutApplicationNestedInput
   oauthClients?: Prisma.OAuthClientUpdateManyWithoutApplicationNestedInput
 }
 
@@ -744,6 +863,7 @@ export type ApplicationUncheckedUpdateWithoutApiKeysInput = {
   roles?: Prisma.RoleUncheckedUpdateManyWithoutApplicationNestedInput
   permissions?: Prisma.PermissionUncheckedUpdateManyWithoutApplicationNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUncheckedUpdateManyWithoutApplicationNestedInput
   oauthClients?: Prisma.OAuthClientUncheckedUpdateManyWithoutApplicationNestedInput
 }
 
@@ -758,6 +878,7 @@ export type ApplicationCreateWithoutOauthClientsInput = {
   roles?: Prisma.RoleCreateNestedManyWithoutApplicationInput
   permissions?: Prisma.PermissionCreateNestedManyWithoutApplicationInput
   sessions?: Prisma.SessionCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogCreateNestedManyWithoutApplicationInput
   apiKeys?: Prisma.ApiKeyCreateNestedManyWithoutApplicationInput
 }
 
@@ -772,6 +893,7 @@ export type ApplicationUncheckedCreateWithoutOauthClientsInput = {
   roles?: Prisma.RoleUncheckedCreateNestedManyWithoutApplicationInput
   permissions?: Prisma.PermissionUncheckedCreateNestedManyWithoutApplicationInput
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutApplicationInput
+  auditLogs?: Prisma.AuditLogUncheckedCreateNestedManyWithoutApplicationInput
   apiKeys?: Prisma.ApiKeyUncheckedCreateNestedManyWithoutApplicationInput
 }
 
@@ -802,6 +924,7 @@ export type ApplicationUpdateWithoutOauthClientsInput = {
   roles?: Prisma.RoleUpdateManyWithoutApplicationNestedInput
   permissions?: Prisma.PermissionUpdateManyWithoutApplicationNestedInput
   sessions?: Prisma.SessionUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUpdateManyWithoutApplicationNestedInput
   apiKeys?: Prisma.ApiKeyUpdateManyWithoutApplicationNestedInput
 }
 
@@ -816,6 +939,7 @@ export type ApplicationUncheckedUpdateWithoutOauthClientsInput = {
   roles?: Prisma.RoleUncheckedUpdateManyWithoutApplicationNestedInput
   permissions?: Prisma.PermissionUncheckedUpdateManyWithoutApplicationNestedInput
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutApplicationNestedInput
+  auditLogs?: Prisma.AuditLogUncheckedUpdateManyWithoutApplicationNestedInput
   apiKeys?: Prisma.ApiKeyUncheckedUpdateManyWithoutApplicationNestedInput
 }
 
@@ -828,6 +952,7 @@ export type ApplicationCountOutputType = {
   roles: number
   permissions: number
   sessions: number
+  auditLogs: number
   apiKeys: number
   oauthClients: number
 }
@@ -836,6 +961,7 @@ export type ApplicationCountOutputTypeSelect<ExtArgs extends runtime.Types.Exten
   roles?: boolean | ApplicationCountOutputTypeCountRolesArgs
   permissions?: boolean | ApplicationCountOutputTypeCountPermissionsArgs
   sessions?: boolean | ApplicationCountOutputTypeCountSessionsArgs
+  auditLogs?: boolean | ApplicationCountOutputTypeCountAuditLogsArgs
   apiKeys?: boolean | ApplicationCountOutputTypeCountApiKeysArgs
   oauthClients?: boolean | ApplicationCountOutputTypeCountOauthClientsArgs
 }
@@ -874,6 +1000,13 @@ export type ApplicationCountOutputTypeCountSessionsArgs<ExtArgs extends runtime.
 /**
  * ApplicationCountOutputType without action
  */
+export type ApplicationCountOutputTypeCountAuditLogsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AuditLogWhereInput
+}
+
+/**
+ * ApplicationCountOutputType without action
+ */
 export type ApplicationCountOutputTypeCountApiKeysArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.ApiKeyWhereInput
 }
@@ -897,6 +1030,7 @@ export type ApplicationSelect<ExtArgs extends runtime.Types.Extensions.InternalA
   roles?: boolean | Prisma.Application$rolesArgs<ExtArgs>
   permissions?: boolean | Prisma.Application$permissionsArgs<ExtArgs>
   sessions?: boolean | Prisma.Application$sessionsArgs<ExtArgs>
+  auditLogs?: boolean | Prisma.Application$auditLogsArgs<ExtArgs>
   apiKeys?: boolean | Prisma.Application$apiKeysArgs<ExtArgs>
   oauthClients?: boolean | Prisma.Application$oauthClientsArgs<ExtArgs>
   _count?: boolean | Prisma.ApplicationCountOutputTypeDefaultArgs<ExtArgs>
@@ -937,6 +1071,7 @@ export type ApplicationInclude<ExtArgs extends runtime.Types.Extensions.Internal
   roles?: boolean | Prisma.Application$rolesArgs<ExtArgs>
   permissions?: boolean | Prisma.Application$permissionsArgs<ExtArgs>
   sessions?: boolean | Prisma.Application$sessionsArgs<ExtArgs>
+  auditLogs?: boolean | Prisma.Application$auditLogsArgs<ExtArgs>
   apiKeys?: boolean | Prisma.Application$apiKeysArgs<ExtArgs>
   oauthClients?: boolean | Prisma.Application$oauthClientsArgs<ExtArgs>
   _count?: boolean | Prisma.ApplicationCountOutputTypeDefaultArgs<ExtArgs>
@@ -950,6 +1085,7 @@ export type $ApplicationPayload<ExtArgs extends runtime.Types.Extensions.Interna
     roles: Prisma.$RolePayload<ExtArgs>[]
     permissions: Prisma.$PermissionPayload<ExtArgs>[]
     sessions: Prisma.$SessionPayload<ExtArgs>[]
+    auditLogs: Prisma.$AuditLogPayload<ExtArgs>[]
     apiKeys: Prisma.$ApiKeyPayload<ExtArgs>[]
     oauthClients: Prisma.$OAuthClientPayload<ExtArgs>[]
   }
@@ -1358,6 +1494,7 @@ export interface Prisma__ApplicationClient<T, Null = never, ExtArgs extends runt
   roles<T extends Prisma.Application$rolesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Application$rolesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RolePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   permissions<T extends Prisma.Application$permissionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Application$permissionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PermissionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   sessions<T extends Prisma.Application$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Application$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  auditLogs<T extends Prisma.Application$auditLogsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Application$auditLogsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AuditLogPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   apiKeys<T extends Prisma.Application$apiKeysArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Application$apiKeysArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ApiKeyPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   oauthClients<T extends Prisma.Application$oauthClientsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Application$oauthClientsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OAuthClientPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
@@ -1858,6 +1995,30 @@ export type Application$sessionsArgs<ExtArgs extends runtime.Types.Extensions.In
   take?: number
   skip?: number
   distinct?: Prisma.SessionScalarFieldEnum | Prisma.SessionScalarFieldEnum[]
+}
+
+/**
+ * Application.auditLogs
+ */
+export type Application$auditLogsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AuditLog
+   */
+  select?: Prisma.AuditLogSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AuditLog
+   */
+  omit?: Prisma.AuditLogOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AuditLogInclude<ExtArgs> | null
+  where?: Prisma.AuditLogWhereInput
+  orderBy?: Prisma.AuditLogOrderByWithRelationInput | Prisma.AuditLogOrderByWithRelationInput[]
+  cursor?: Prisma.AuditLogWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AuditLogScalarFieldEnum | Prisma.AuditLogScalarFieldEnum[]
 }
 
 /**

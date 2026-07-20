@@ -282,6 +282,7 @@ export type TokenBlacklistScalarFieldEnum = (typeof TokenBlacklistScalarFieldEnu
 
 export const AuditLogScalarFieldEnum = {
   id: 'id',
+  applicationId: 'applicationId',
   actorUserId: 'actorUserId',
   action: 'action',
   resourceType: 'resourceType',
