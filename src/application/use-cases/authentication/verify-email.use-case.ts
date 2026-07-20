@@ -1,3 +1,4 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 import type { SecureTokenService } from '@/application/ports/crypto/secure-token-service.js';
 import type {
   EmailVerificationRepository,
@@ -5,13 +6,15 @@ import type {
 } from '@/application/ports/repositories/email-verification.repository.js';
 import type { Clock } from '@/application/ports/system/clock.js';
 
-export interface VerifyEmailCommand {
+export interface VerifyEmailCommand extends AuditRequestContext {
   token: string;
 }
 
 export interface VerifyEmailUseCaseDependencies {
   emailVerificationRepository: EmailVerificationRepository;
+
   secureTokenService: SecureTokenService;
+
   clock: Clock;
 }
 
@@ -41,7 +44,26 @@ export class VerifyEmailUseCase {
 
     return this.emailVerificationRepository.verifyEmail({
       tokenHash,
+
       verifiedAt: this.clock.now(),
+
+      ...(command.requestId === undefined
+        ? {}
+        : {
+            requestId: command.requestId,
+          }),
+
+      ...(command.ipAddress === undefined
+        ? {}
+        : {
+            ipAddress: command.ipAddress,
+          }),
+
+      ...(command.userAgent === undefined
+        ? {}
+        : {
+            userAgent: command.userAgent,
+          }),
     });
   }
 }

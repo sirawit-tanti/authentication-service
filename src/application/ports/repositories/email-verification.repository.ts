@@ -1,4 +1,6 @@
-export interface VerifyEmailInput {
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
+
+export interface VerifyEmailInput extends AuditRequestContext {
   tokenHash: string;
   verifiedAt: Date;
 }

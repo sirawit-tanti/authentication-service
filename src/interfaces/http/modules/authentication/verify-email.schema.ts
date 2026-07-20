@@ -16,8 +16,63 @@ export const verifyEmailRequestSchema = z
 
 export type VerifyEmailRequestBody = z.infer<typeof verifyEmailRequestSchema>;
 
+const apiErrorDetailSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['code', 'message'],
+
+  properties: {
+    code: {
+      type: 'string',
+    },
+
+    field: {
+      type: 'string',
+    },
+
+    message: {
+      type: 'string',
+    },
+  },
+} as const;
+
+const apiErrorResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['success', 'error'],
+
+  properties: {
+    success: {
+      type: 'boolean',
+      enum: [false],
+    },
+
+    error: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['code', 'message'],
+
+      properties: {
+        code: {
+          type: 'string',
+        },
+
+        message: {
+          type: 'string',
+        },
+
+        details: {
+          type: 'array',
+          items: apiErrorDetailSchema,
+        },
+      },
+    },
+  },
+} as const;
+
 export const verifyEmailRouteSchema = {
   description: 'Verify a registered user email address',
+
   tags: ['Authentication'],
 
   body: {
@@ -69,24 +124,16 @@ export const verifyEmailRouteSchema = {
       },
     },
 
-    400: {
-      type: 'object',
-      additionalProperties: true,
-    },
+    400: apiErrorResponseSchema,
 
-    409: {
-      type: 'object',
-      additionalProperties: true,
-    },
+    409: apiErrorResponseSchema,
 
-    410: {
-      type: 'object',
-      additionalProperties: true,
-    },
+    410: apiErrorResponseSchema,
 
-    422: {
-      type: 'object',
-      additionalProperties: true,
-    },
+    422: apiErrorResponseSchema,
+
+    429: apiErrorResponseSchema,
+
+    500: apiErrorResponseSchema,
   },
 } as const;

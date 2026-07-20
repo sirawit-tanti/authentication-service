@@ -4,8 +4,9 @@ import { EmailAlreadyVerifiedError } from '@/application/errors/email-already-ve
 import { EmailVerificationTokenExpiredError } from '@/application/errors/email-verification-token-expired.error.js';
 import { EmailVerificationTokenInvalidError } from '@/application/errors/email-verification-token-invalid.error.js';
 import { OptimisticConcurrencyError } from '@/application/errors/optimistic-concurrency.error.js';
-import type { VerifyEmailCommand } from '@/application/use-cases/authentication/verify-email.use-case.js';
 import type { VerifyEmailResult } from '@/application/ports/repositories/email-verification.repository.js';
+import type { VerifyEmailCommand } from '@/application/use-cases/authentication/verify-email.use-case.js';
+import { createRequestAuditContext } from '@/interfaces/http/auditing/request-audit-context.js';
 import { createErrorResponse, createSuccessResponse } from '@/shared/http/api-response.js';
 import { verifyEmailRequestSchema, type VerifyEmailRequestBody } from './verify-email.schema.js';
 
@@ -26,6 +27,7 @@ export function createVerifyEmailController(
 ): (request: FastifyRequest<VerifyEmailRouteRequest>, reply: FastifyReply) => Promise<void> {
   return async function verifyEmailController(
     request: FastifyRequest<VerifyEmailRouteRequest>,
+
     reply: FastifyReply,
   ): Promise<void> {
     const validationResult = verifyEmailRequestSchema.safeParse(request.body);
@@ -35,9 +37,12 @@ export function createVerifyEmailController(
         createErrorResponse(
           'INVALID_REQUEST',
           'Request validation failed',
+
           validationResult.error.issues.map((issue) => ({
             code: issue.code,
+
             field: issue.path.length === 0 ? 'token' : issue.path.map(String).join('.'),
+
             message: issue.message,
           })),
         ),
@@ -49,6 +54,8 @@ export function createVerifyEmailController(
     try {
       const result = await dependencies.verifyEmailUseCase.execute({
         token: validationResult.data.token,
+
+        ...createRequestAuditContext(request),
       });
 
       await reply.status(200).send(createSuccessResponse(result));
