@@ -11,13 +11,12 @@ import type { IdGenerator } from '@/application/ports/system/id-generator.js';
 import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
 import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
 import type { User } from '@/domain/users/entities/user.entity.js';
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 
-export interface LoginUserCommand {
+export interface LoginUserCommand extends AuditRequestContext {
   applicationId: string;
   email: string;
   password: string;
-  ipAddress?: string;
-  userAgent?: string;
 }
 
 export interface LoginUserResult {
@@ -197,6 +196,12 @@ export class LoginUserUseCase {
       createdAt: now,
       sessionExpiresAt: refreshTokenExpiresAt,
       refreshTokenExpiresAt,
+
+      ...(command.requestId === undefined
+        ? {}
+        : {
+            requestId: command.requestId,
+          }),
 
       ...(command.ipAddress === undefined
         ? {}

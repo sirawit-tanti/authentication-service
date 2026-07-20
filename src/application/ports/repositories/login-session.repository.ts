@@ -1,6 +1,7 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 import type { User } from '@/domain/users/entities/user.entity.js';
 
-export interface CreateLoginSessionInput {
+export interface CreateLoginSessionInput extends AuditRequestContext {
   user: User;
   expectedUserVersion: number;
 
@@ -15,9 +16,6 @@ export interface CreateLoginSessionInput {
   createdAt: Date;
   sessionExpiresAt: Date;
   refreshTokenExpiresAt: Date;
-
-  ipAddress?: string;
-  userAgent?: string;
 }
 
 export interface LoginSessionRepository {

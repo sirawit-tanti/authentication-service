@@ -80,6 +80,7 @@ export function createLoginController(
         email: validationResult.data.email,
         password: validationResult.data.password,
 
+        requestId: request.id,
         ipAddress: request.ip,
 
         ...(userAgent === undefined

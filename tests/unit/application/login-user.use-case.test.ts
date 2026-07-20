@@ -42,6 +42,8 @@ const DUMMY_PASSWORD_HASH = 'hashed:DummyTestOnly#2026';
 
 const FIXED_NOW = new Date('2026-07-16T00:00:00.000Z');
 
+const REQUEST_ID = 'login-request-id';
+
 const EXPECTED_REFRESH_TOKEN_EXPIRES_AT = new Date('2026-08-15T00:00:00.000Z');
 
 class FakeUserRepository implements UserRepository {
@@ -252,6 +254,7 @@ describe('LoginUserUseCase', () => {
       applicationId: APPLICATION_ID,
       email: '  Sirawit@Example.com  ',
       password: VALID_TEST_PASSWORD,
+      requestId: REQUEST_ID,
       ipAddress: '127.0.0.1',
       userAgent: 'Vitest',
     });
@@ -291,21 +294,14 @@ describe('LoginUserUseCase', () => {
       expectedUserVersion: 2,
       sessionId: SESSION_ID,
       applicationId: APPLICATION_ID,
-
       refreshTokenId: REFRESH_TOKEN_ID,
-
       refreshTokenFamilyId: REFRESH_TOKEN_FAMILY_ID,
-
       refreshTokenJti: REFRESH_TOKEN_JTI,
-
       refreshTokenHash: 'test-refresh-token-hash',
-
       createdAt: FIXED_NOW,
-
       sessionExpiresAt: EXPECTED_REFRESH_TOKEN_EXPIRES_AT,
-
       refreshTokenExpiresAt: EXPECTED_REFRESH_TOKEN_EXPIRES_AT,
-
+      requestId: REQUEST_ID,
       ipAddress: '127.0.0.1',
       userAgent: 'Vitest',
     });
