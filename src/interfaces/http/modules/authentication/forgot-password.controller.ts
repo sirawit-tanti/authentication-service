@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import type { ForgotPasswordCommand } from '@/application/use-cases/authentication/forgot-password.use-case.js';
+import { createRequestAuditContext } from '@/interfaces/http/auditing/request-audit-context.js';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -31,6 +32,7 @@ export function createForgotPasswordController(
 ): (request: FastifyRequest<ForgotPasswordRouteRequest>, reply: FastifyReply) => Promise<void> {
   return async function forgotPasswordController(
     request: FastifyRequest<ForgotPasswordRouteRequest>,
+
     reply: FastifyReply,
   ): Promise<void> {
     const validationResult = forgotPasswordRequestSchema.safeParse(request.body);
@@ -64,6 +66,8 @@ export function createForgotPasswordController(
 
     await dependencies.forgotPasswordUseCase.execute({
       email: validationResult.data.email,
+
+      ...createRequestAuditContext(request),
     });
 
     await reply.status(202).send(

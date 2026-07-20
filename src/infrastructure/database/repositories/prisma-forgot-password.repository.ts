@@ -1,3 +1,4 @@
+import { SECURITY_AUDIT_ACTIONS } from '@/application/auditing/security-audit-action.js';
 import type {
   CreatePasswordResetRequestInput,
   ForgotPasswordRepository,
@@ -5,6 +6,8 @@ import type {
 } from '@/application/ports/repositories/forgot-password.repository.js';
 import type { Prisma } from '@/generated/prisma/client.js';
 import type { ApplicationPrismaClient } from '../prisma-client.js';
+
+const USER_RESOURCE_TYPE = 'USER';
 
 function toPrismaJsonValue(value: unknown): Prisma.InputJsonValue {
   if (value === null) {
@@ -57,6 +60,7 @@ export class PrismaForgotPasswordRepository implements ForgotPasswordRepository 
         emailVerified: true,
         deletedAt: null,
       },
+
       select: {
         id: true,
         email: true,
@@ -83,8 +87,10 @@ export class PrismaForgotPasswordRepository implements ForgotPasswordRepository 
         await transaction.passwordResetToken.updateMany({
           where: {
             userId: input.userId,
+
             usedAt: null,
           },
+
           data: {
             usedAt: input.invalidatedAt,
           },
@@ -93,9 +99,13 @@ export class PrismaForgotPasswordRepository implements ForgotPasswordRepository 
         await transaction.passwordResetToken.create({
           data: {
             id: input.resetToken.id,
+
             userId: input.userId,
+
             tokenHash: input.resetToken.tokenHash,
+
             expiresAt: input.resetToken.expiresAt,
+
             createdAt: input.resetToken.createdAt,
           },
         });
@@ -103,12 +113,58 @@ export class PrismaForgotPasswordRepository implements ForgotPasswordRepository 
         await transaction.outboxMessage.create({
           data: {
             id: input.outboxMessage.id,
+
             topic: input.outboxMessage.topic,
+
             eventType: input.outboxMessage.eventType,
+
             aggregateId: input.outboxMessage.aggregateId,
+
             payload: outboxPayload,
+
             availableAt: input.outboxMessage.availableAt,
+
             createdAt: input.outboxMessage.createdAt,
+          },
+        });
+
+        await transaction.auditLog.create({
+          data: {
+            actorUserId: input.userId,
+
+            action: SECURITY_AUDIT_ACTIONS.PASSWORD_RESET_REQUESTED,
+
+            resourceType: USER_RESOURCE_TYPE,
+
+            resourceId: input.userId,
+
+            outcome: 'SUCCESS',
+
+            createdAt: input.resetToken.createdAt,
+
+            metadata: {
+              resetRequestId: input.resetToken.id,
+
+              expiresAt: input.resetToken.expiresAt.toISOString(),
+            },
+
+            ...(input.requestId === undefined
+              ? {}
+              : {
+                  requestId: input.requestId,
+                }),
+
+            ...(input.ipAddress === undefined
+              ? {}
+              : {
+                  ipAddress: input.ipAddress,
+                }),
+
+            ...(input.userAgent === undefined
+              ? {}
+              : {
+                  userAgent: input.userAgent,
+                }),
           },
         });
       },

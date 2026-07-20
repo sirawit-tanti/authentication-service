@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 import { EMAIL_JOB_NAMES } from '@/application/jobs/email-job.js';
 import { OUTBOX_TOPICS } from '@/application/outbox/outbox-message.js';
 import type { PasswordResetTokenService } from '@/application/ports/authentication/password-reset-token.service.js';
@@ -8,7 +9,7 @@ import type { Clock } from '@/application/ports/system/clock.js';
 
 const PASSWORD_RESET_TOKEN_TTL_MINUTES = 30;
 
-export interface ForgotPasswordCommand {
+export interface ForgotPasswordCommand extends AuditRequestContext {
   email: string;
 }
 
@@ -20,12 +21,16 @@ export interface ForgotPasswordUseCaseDependencies {
 
 export class ForgotPasswordUseCase {
   private readonly repository: ForgotPasswordRepository;
+
   private readonly passwordResetTokenService: PasswordResetTokenService;
+
   private readonly clock: Clock;
 
   public constructor(dependencies: ForgotPasswordUseCaseDependencies) {
     this.repository = dependencies.repository;
+
     this.passwordResetTokenService = dependencies.passwordResetTokenService;
+
     this.clock = dependencies.clock;
   }
 
@@ -46,28 +51,61 @@ export class ForgotPasswordUseCase {
 
     await this.repository.createPasswordResetRequest({
       userId: user.userId,
+
       resetToken: {
         id: randomUUID(),
+
         tokenHash: generatedToken.tokenHash,
+
         expiresAt,
         createdAt,
       },
+
       outboxMessage: {
         id: randomUUID(),
+
         topic: OUTBOX_TOPICS.EMAIL,
+
         eventType: EMAIL_JOB_NAMES.SEND_PASSWORD_RESET,
+
         aggregateId: user.userId,
+
         payload: {
           version: 1,
+
           userId: user.userId,
+
           email: user.email,
+
           resetToken: generatedToken.rawToken,
+
           expiresAt: expiresAt.toISOString(),
         },
+
         availableAt: createdAt,
+
         createdAt,
       },
+
       invalidatedAt: createdAt,
+
+      ...(command.requestId === undefined
+        ? {}
+        : {
+            requestId: command.requestId,
+          }),
+
+      ...(command.ipAddress === undefined
+        ? {}
+        : {
+            ipAddress: command.ipAddress,
+          }),
+
+      ...(command.userAgent === undefined
+        ? {}
+        : {
+            userAgent: command.userAgent,
+          }),
     });
   }
 }

@@ -1,3 +1,4 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 import type { CreateEmailOutboxMessageInput } from '@/application/outbox/outbox-message.js';
 
 export interface ForgotPasswordUserRecord {
@@ -5,7 +6,7 @@ export interface ForgotPasswordUserRecord {
   email: string;
 }
 
-export interface CreatePasswordResetRequestInput {
+export interface CreatePasswordResetRequestInput extends AuditRequestContext {
   userId: string;
   resetToken: {
     id: string;
