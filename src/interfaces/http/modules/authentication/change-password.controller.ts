@@ -4,6 +4,7 @@ import { InvalidCurrentPasswordError } from '@/application/errors/invalid-curren
 import { PasswordChangeConflictError } from '@/application/errors/password-change-conflict.error.js';
 import { PasswordUnchangedError } from '@/application/errors/password-unchanged.error.js';
 import type { ChangePasswordCommand } from '@/application/use-cases/authentication/change-password.use-case.js';
+import { createRequestAuditContext } from '@/interfaces/http/auditing/request-audit-context.js';
 import { createErrorResponse, type ApiErrorDetail } from '@/shared/http/api-response.js';
 import {
   changePasswordRequestSchema,
@@ -27,7 +28,6 @@ export function createChangePasswordController(
 ): (request: FastifyRequest<ChangePasswordRouteRequest>, reply: FastifyReply) => Promise<void> {
   return async function changePasswordController(
     request: FastifyRequest<ChangePasswordRouteRequest>,
-
     reply: FastifyReply,
   ): Promise<void> {
     const principal = request.authenticatedPrincipal;
@@ -72,11 +72,14 @@ export function createChangePasswordController(
     try {
       await dependencies.changePasswordUseCase.execute({
         userId: principal.userId,
+
         currentSessionId: principal.sessionId,
 
         currentPassword: validationResult.data.currentPassword,
 
         newPassword: validationResult.data.newPassword,
+
+        ...createRequestAuditContext(request),
       });
     } catch (error: unknown) {
       if (error instanceof InvalidCurrentPasswordError) {

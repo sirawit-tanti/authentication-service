@@ -1,3 +1,5 @@
+import { InvalidCurrentPasswordError } from '../../../src/application/errors/invalid-current-password.error.js';
+import { PasswordUnchangedError } from '../../../src/application/errors/password-unchanged.error.js';
 import type { PasswordHasher } from '@/application/ports/authentication/password-hasher.js';
 import type {
   ChangePasswordRepository,
@@ -7,26 +9,31 @@ import type {
   PersistPasswordChangeResult,
 } from '../../../src/application/ports/repositories/change-password.repository.js';
 import type { Clock } from '../../../src/application/ports/system/clock.js';
-import { InvalidCurrentPasswordError } from '../../../src/application/errors/invalid-current-password.error.js';
-import { PasswordUnchangedError } from '../../../src/application/errors/password-unchanged.error.js';
 import { ChangePasswordUseCase } from '../../../src/application/use-cases/authentication/change-password.use-case.js';
 
 const FIXED_NOW = new Date('2026-07-17T00:00:00.000Z');
 
+const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
+
+const SESSION_ID = 'be4c57d3-b4c9-4eb5-a975-92adb74f69c8';
+
+const REQUEST_ID = 'change-password-request-id';
+
 class FakeChangePasswordRepository implements ChangePasswordRepository {
   public user: ChangePasswordUserRecord | null = {
-    userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
-
+    userId: USER_ID,
     passwordHash: 'hash:OldPassword#2026',
     version: 4,
   };
+
+  public findInput: FindUserForPasswordChangeInput | null = null;
 
   public persistInput: PersistPasswordChangeInput | null = null;
 
   public persistResult: PersistPasswordChangeResult = 'UPDATED';
 
   public findUser(input: FindUserForPasswordChangeInput): Promise<ChangePasswordUserRecord | null> {
-    void input;
+    this.findInput = input;
 
     return Promise.resolve(this.user);
   }
@@ -63,6 +70,7 @@ class FixedClock implements Clock {
 function createUseCase(repository: FakeChangePasswordRepository): ChangePasswordUseCase {
   return new ChangePasswordUseCase({
     repository,
+
     passwordHasher: new FakePasswordHasher(),
 
     clock: new FixedClock(),
@@ -70,34 +78,67 @@ function createUseCase(repository: FakeChangePasswordRepository): ChangePassword
 }
 
 describe('ChangePasswordUseCase', () => {
-  it('changes the password and preserves the current session', async () => {
+  it('changes the password and passes the audit request context', async () => {
     const repository = new FakeChangePasswordRepository();
 
     const useCase = createUseCase(repository);
 
     await useCase.execute({
-      userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
+      userId: USER_ID,
 
-      currentSessionId: 'be4c57d3-b4c9-4eb5-a975-92adb74f69c8',
+      currentSessionId: SESSION_ID,
 
       currentPassword: 'OldPassword#2026',
 
       newPassword: 'NewPassword#2026',
+
+      requestId: REQUEST_ID,
+      ipAddress: '127.0.0.1',
+      userAgent: 'Vitest',
+    });
+
+    expect(repository.findInput).toEqual({
+      userId: USER_ID,
     });
 
     expect(repository.persistInput).toEqual({
-      userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
-
+      userId: USER_ID,
       expectedVersion: 4,
 
       newPasswordHash: 'hash:NewPassword#2026',
 
       passwordChangedAt: FIXED_NOW,
 
-      currentSessionId: 'be4c57d3-b4c9-4eb5-a975-92adb74f69c8',
+      currentSessionId: SESSION_ID,
 
       revokeReason: 'Password changed by user',
+
+      requestId: REQUEST_ID,
+      ipAddress: '127.0.0.1',
+      userAgent: 'Vitest',
     });
+  });
+
+  it('omits optional audit fields when they are not supplied', async () => {
+    const repository = new FakeChangePasswordRepository();
+
+    const useCase = createUseCase(repository);
+
+    await useCase.execute({
+      userId: USER_ID,
+
+      currentSessionId: SESSION_ID,
+
+      currentPassword: 'OldPassword#2026',
+
+      newPassword: 'NewPassword#2026',
+    });
+
+    expect(repository.persistInput).not.toHaveProperty('requestId');
+
+    expect(repository.persistInput).not.toHaveProperty('ipAddress');
+
+    expect(repository.persistInput).not.toHaveProperty('userAgent');
   });
 
   it('rejects an invalid current password', async () => {
@@ -107,9 +148,9 @@ describe('ChangePasswordUseCase', () => {
 
     await expect(
       useCase.execute({
-        userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
+        userId: USER_ID,
 
-        currentSessionId: 'be4c57d3-b4c9-4eb5-a975-92adb74f69c8',
+        currentSessionId: SESSION_ID,
 
         currentPassword: 'IncorrectPassword#2026',
 
@@ -127,9 +168,9 @@ describe('ChangePasswordUseCase', () => {
 
     await expect(
       useCase.execute({
-        userId: 'f7ee2402-e515-47fa-b79f-c700e82b4451',
+        userId: USER_ID,
 
-        currentSessionId: 'be4c57d3-b4c9-4eb5-a975-92adb74f69c8',
+        currentSessionId: SESSION_ID,
 
         currentPassword: 'OldPassword#2026',
 

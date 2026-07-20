@@ -1,3 +1,5 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
+
 export interface ChangePasswordUserRecord {
   userId: string;
   passwordHash: string;
@@ -8,7 +10,7 @@ export interface FindUserForPasswordChangeInput {
   userId: string;
 }
 
-export interface PersistPasswordChangeInput {
+export interface PersistPasswordChangeInput extends AuditRequestContext {
   userId: string;
   expectedVersion: number;
   newPasswordHash: string;

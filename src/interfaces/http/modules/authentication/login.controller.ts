@@ -12,6 +12,7 @@ import {
   type ApiErrorDetail,
 } from '@/shared/http/api-response.js';
 import { loginRequestSchema, type LoginRequestBody } from './login.schema.js';
+import { createRequestAuditContext } from '@/interfaces/http/auditing/request-audit-context.js';
 
 export interface LoginUserExecutor {
   execute(command: LoginUserCommand): Promise<LoginUserResult>;
@@ -23,16 +24,6 @@ export interface LoginControllerDependencies {
 
 interface LoginRouteRequest {
   Body: LoginRequestBody;
-}
-
-function getUserAgent(request: FastifyRequest): string | undefined {
-  const userAgent = request.headers['user-agent'];
-
-  if (userAgent === undefined || userAgent.length === 0) {
-    return undefined;
-  }
-
-  return userAgent.slice(0, 512);
 }
 
 export function createLoginController(
@@ -71,23 +62,15 @@ export function createLoginController(
       return;
     }
 
-    const userAgent = getUserAgent(request);
-
     try {
       const result = await dependencies.loginUserUseCase.execute({
         applicationId: validationResult.data.applicationId,
 
         email: validationResult.data.email,
+
         password: validationResult.data.password,
 
-        requestId: request.id,
-        ipAddress: request.ip,
-
-        ...(userAgent === undefined
-          ? {}
-          : {
-              userAgent,
-            }),
+        ...createRequestAuditContext(request),
       });
 
       await reply.status(200).send(createSuccessResponse(result));

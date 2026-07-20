@@ -1,3 +1,4 @@
+import { SECURITY_AUDIT_ACTIONS } from '@/application/auditing/security-audit-action.js';
 import type {
   ChangePasswordRepository,
   ChangePasswordUserRecord,
@@ -6,6 +7,8 @@ import type {
   PersistPasswordChangeResult,
 } from '@/application/ports/repositories/change-password.repository.js';
 import type { ApplicationPrismaClient } from '../prisma-client.js';
+
+const USER_RESOURCE_TYPE = 'USER';
 
 export class PrismaChangePasswordRepository implements ChangePasswordRepository {
   private readonly prisma: ApplicationPrismaClient;
@@ -112,6 +115,7 @@ export class PrismaChangePasswordRepository implements ChangePasswordRepository 
 
             data: {
               status: 'REVOKED',
+
               revokedAt: input.passwordChangedAt,
 
               revokeReason: input.revokeReason,
@@ -151,6 +155,46 @@ export class PrismaChangePasswordRepository implements ChangePasswordRepository 
             lastActivityAt: input.passwordChangedAt,
 
             updatedAt: input.passwordChangedAt,
+          },
+        });
+
+        await transaction.auditLog.create({
+          data: {
+            actorUserId: input.userId,
+
+            action: SECURITY_AUDIT_ACTIONS.PASSWORD_CHANGED,
+
+            resourceType: USER_RESOURCE_TYPE,
+
+            resourceId: input.userId,
+
+            outcome: 'SUCCESS',
+
+            createdAt: input.passwordChangedAt,
+
+            metadata: {
+              preservedSessionId: input.currentSessionId,
+
+              revokedSessionCount: otherSessionIds.length,
+            },
+
+            ...(input.requestId === undefined
+              ? {}
+              : {
+                  requestId: input.requestId,
+                }),
+
+            ...(input.ipAddress === undefined
+              ? {}
+              : {
+                  ipAddress: input.ipAddress,
+                }),
+
+            ...(input.userAgent === undefined
+              ? {}
+              : {
+                  userAgent: input.userAgent,
+                }),
           },
         });
 

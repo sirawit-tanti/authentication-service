@@ -1,3 +1,4 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 import { InvalidCurrentPasswordError } from '@/application/errors/invalid-current-password.error.js';
 import { PasswordChangeConflictError } from '@/application/errors/password-change-conflict.error.js';
 import { PasswordUnchangedError } from '@/application/errors/password-unchanged.error.js';
@@ -7,7 +8,7 @@ import type { Clock } from '@/application/ports/system/clock.js';
 
 const PASSWORD_CHANGE_REVOKE_REASON = 'Password changed by user';
 
-export interface ChangePasswordCommand {
+export interface ChangePasswordCommand extends AuditRequestContext {
   userId: string;
   currentSessionId: string;
   currentPassword: string;
@@ -22,12 +23,16 @@ export interface ChangePasswordUseCaseDependencies {
 
 export class ChangePasswordUseCase {
   private readonly repository: ChangePasswordRepository;
+
   private readonly passwordHasher: PasswordHasher;
+
   private readonly clock: Clock;
 
   public constructor(dependencies: ChangePasswordUseCaseDependencies) {
     this.repository = dependencies.repository;
+
     this.passwordHasher = dependencies.passwordHasher;
+
     this.clock = dependencies.clock;
   }
 
@@ -60,13 +65,37 @@ export class ChangePasswordUseCase {
 
     const newPasswordHash = await this.passwordHasher.hash(command.newPassword);
 
+    const passwordChangedAt = this.clock.now();
+
     const result = await this.repository.persist({
       userId: user.userId,
+
       expectedVersion: user.version,
+
       newPasswordHash,
-      passwordChangedAt: this.clock.now(),
+      passwordChangedAt,
+
       currentSessionId: command.currentSessionId,
+
       revokeReason: PASSWORD_CHANGE_REVOKE_REASON,
+
+      ...(command.requestId === undefined
+        ? {}
+        : {
+            requestId: command.requestId,
+          }),
+
+      ...(command.ipAddress === undefined
+        ? {}
+        : {
+            ipAddress: command.ipAddress,
+          }),
+
+      ...(command.userAgent === undefined
+        ? {}
+        : {
+            userAgent: command.userAgent,
+          }),
     });
 
     if (result === 'CONFLICT') {
