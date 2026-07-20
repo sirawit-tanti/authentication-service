@@ -6,6 +6,7 @@ import type {
 } from '@/application/use-cases/authentication/list-user-sessions.use-case.js';
 import type { RevokeOtherUserSessionsCommand } from '@/application/use-cases/authentication/revoke-other-user-sessions.use-case.js';
 import type { RevokeUserSessionCommand } from '@/application/use-cases/authentication/revoke-user-session.use-case.js';
+import { createRequestAuditContext } from '@/interfaces/http/auditing/request-audit-context.js';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -60,6 +61,7 @@ export function createListSessionsController(
 
     const result = await dependencies.listUserSessionsUseCase.execute({
       userId: principal.userId,
+
       currentSessionId: principal.sessionId,
     });
 
@@ -72,6 +74,7 @@ export function createRevokeSessionController(
 ): (request: FastifyRequest<RevokeSessionRequest>, reply: FastifyReply) => Promise<void> {
   return async function revokeSessionController(
     request: FastifyRequest<RevokeSessionRequest>,
+
     reply: FastifyReply,
   ): Promise<void> {
     const principal = request.authenticatedPrincipal;
@@ -92,13 +95,16 @@ export function createRevokeSessionController(
           if (field.length === 0) {
             return {
               code: issue.code,
+
               message: issue.message,
             };
           }
 
           return {
             code: issue.code,
+
             field,
+
             message: issue.message,
           };
         },
@@ -113,7 +119,10 @@ export function createRevokeSessionController(
 
     await dependencies.revokeUserSessionUseCase.execute({
       userId: principal.userId,
+
       sessionId: validationResult.data.sessionId,
+
+      ...createRequestAuditContext(request),
     });
 
     await reply.status(204).send();
@@ -137,7 +146,10 @@ export function createRevokeOtherSessionsController(
 
     const result = await dependencies.revokeOtherUserSessionsUseCase.execute({
       userId: principal.userId,
+
       currentSessionId: principal.sessionId,
+
+      ...createRequestAuditContext(request),
     });
 
     await reply.status(200).send(createSuccessResponse(result));

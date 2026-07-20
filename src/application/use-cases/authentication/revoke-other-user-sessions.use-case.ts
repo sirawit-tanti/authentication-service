@@ -1,3 +1,4 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 import type {
   RevokeOtherUserSessionsResult,
   UserSessionRepository,
@@ -6,7 +7,7 @@ import type { Clock } from '@/application/ports/system/clock.js';
 
 const REVOKE_OTHER_SESSIONS_REASON = 'Revoked by user from another session';
 
-export interface RevokeOtherUserSessionsCommand {
+export interface RevokeOtherUserSessionsCommand extends AuditRequestContext {
   userId: string;
   currentSessionId: string;
 }
@@ -23,15 +24,37 @@ export class RevokeOtherUserSessionsUseCase {
 
   public constructor(dependencies: RevokeOtherUserSessionsUseCaseDependencies) {
     this.repository = dependencies.repository;
+
     this.clock = dependencies.clock;
   }
 
   public execute(command: RevokeOtherUserSessionsCommand): Promise<RevokeOtherUserSessionsResult> {
     return this.repository.revokeOthers({
       userId: command.userId,
+
       currentSessionId: command.currentSessionId,
+
       revokedAt: this.clock.now(),
+
       reason: REVOKE_OTHER_SESSIONS_REASON,
+
+      ...(command.requestId === undefined
+        ? {}
+        : {
+            requestId: command.requestId,
+          }),
+
+      ...(command.ipAddress === undefined
+        ? {}
+        : {
+            ipAddress: command.ipAddress,
+          }),
+
+      ...(command.userAgent === undefined
+        ? {}
+        : {
+            userAgent: command.userAgent,
+          }),
     });
   }
 }

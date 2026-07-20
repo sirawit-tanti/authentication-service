@@ -1,3 +1,5 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
+
 export interface UserSessionRecord {
   sessionId: string;
   applicationId: string;
@@ -12,14 +14,14 @@ export interface UserSessionRecord {
   createdAt: Date;
 }
 
-export interface RevokeUserSessionInput {
+export interface RevokeUserSessionInput extends AuditRequestContext {
   userId: string;
   sessionId: string;
   revokedAt: Date;
   reason: string;
 }
 
-export interface RevokeOtherUserSessionsInput {
+export interface RevokeOtherUserSessionsInput extends AuditRequestContext {
   userId: string;
   currentSessionId: string;
   revokedAt: Date;
