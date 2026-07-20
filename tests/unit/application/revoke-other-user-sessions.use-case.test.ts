@@ -11,6 +11,8 @@ import { RevokeOtherUserSessionsUseCase } from '../../../src/application/use-cas
 
 const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
 
+const APPLICATION_ID = 'd797d3eb-41ce-40cf-9d79-30b15fe49042';
+
 const CURRENT_SESSION_ID = 'be4c57d3-b4c9-4eb5-a975-92adb74f69c8';
 
 const FIXED_NOW = new Date('2026-07-17T00:00:00.000Z');
@@ -62,6 +64,8 @@ describe('RevokeOtherUserSessionsUseCase', () => {
     const result = await useCase.execute({
       userId: USER_ID,
 
+      applicationId: APPLICATION_ID,
+
       currentSessionId: CURRENT_SESSION_ID,
 
       requestId: REQUEST_ID,
@@ -73,6 +77,8 @@ describe('RevokeOtherUserSessionsUseCase', () => {
 
     expect(repository.input).toEqual({
       userId: USER_ID,
+
+      applicationId: APPLICATION_ID,
 
       currentSessionId: CURRENT_SESSION_ID,
 
@@ -104,11 +110,15 @@ describe('RevokeOtherUserSessionsUseCase', () => {
     await useCase.execute({
       userId: USER_ID,
 
+      applicationId: APPLICATION_ID,
+
       currentSessionId: CURRENT_SESSION_ID,
     });
 
     expect(repository.input).toEqual({
       userId: USER_ID,
+
+      applicationId: APPLICATION_ID,
 
       currentSessionId: CURRENT_SESSION_ID,
 

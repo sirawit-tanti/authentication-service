@@ -6,6 +6,7 @@ const REMOTE_REVOCATION_REASON = 'Revoked by user';
 
 export interface RevokeUserSessionCommand extends AuditRequestContext {
   userId: string;
+  applicationId: string;
   sessionId: string;
 }
 
@@ -28,6 +29,8 @@ export class RevokeUserSessionUseCase {
   public async execute(command: RevokeUserSessionCommand): Promise<void> {
     await this.repository.revoke({
       userId: command.userId,
+
+      applicationId: command.applicationId,
 
       sessionId: command.sessionId,
 

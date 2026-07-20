@@ -83,6 +83,8 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
             id: input.sessionId,
 
             userId: input.userId,
+
+            applicationId: input.applicationId,
           },
 
           select: {
@@ -105,6 +107,8 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
             id: session.id,
 
             userId: input.userId,
+
+            applicationId: input.applicationId,
 
             status: {
               not: 'REVOKED',
@@ -146,6 +150,8 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
 
         await transaction.auditLog.create({
           data: {
+            applicationId: input.applicationId,
+
             actorUserId: input.userId,
 
             action: SECURITY_AUDIT_ACTIONS.SESSION_REVOKED,
@@ -202,6 +208,8 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
           where: {
             userId: input.userId,
 
+            applicationId: input.applicationId,
+
             id: {
               not: input.currentSessionId,
             },
@@ -231,6 +239,8 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
             },
 
             userId: input.userId,
+
+            applicationId: input.applicationId,
 
             status: 'ACTIVE',
 
@@ -274,6 +284,8 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
 
         await transaction.auditLog.create({
           data: {
+            applicationId: input.applicationId,
+
             actorUserId: input.userId,
 
             action: SECURITY_AUDIT_ACTIONS.OTHER_SESSIONS_REVOKED,

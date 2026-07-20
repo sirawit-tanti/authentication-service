@@ -10,22 +10,19 @@ export interface PermissionGuardDependencies {
   permissionCode: string;
 }
 
-export type PermissionGuard = (
-  request: FastifyRequest,
-  reply: FastifyReply,
-) => Promise<FastifyReply | void>;
+export type PermissionGuard = (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
 
 export function createPermissionGuard(dependencies: PermissionGuardDependencies): PermissionGuard {
   return async function permissionGuard(
     request: FastifyRequest,
     reply: FastifyReply,
-  ): Promise<FastifyReply | void> {
+  ): Promise<void> {
     const principal = request.authenticatedPrincipal;
 
     if (principal === null) {
-      return reply
-        .status(401)
-        .send(createErrorResponse('UNAUTHORIZED', 'Authentication is required'));
+      reply.status(401).send(createErrorResponse('UNAUTHORIZED', 'Authentication is required'));
+
+      return;
     }
 
     const hasPermission = await dependencies.permissionChecker.hasPermission({
@@ -39,7 +36,7 @@ export function createPermissionGuard(dependencies: PermissionGuardDependencies)
     });
 
     if (!hasPermission) {
-      return reply
+      reply
         .status(403)
         .send(
           createErrorResponse('FORBIDDEN', 'You do not have permission to perform this action'),

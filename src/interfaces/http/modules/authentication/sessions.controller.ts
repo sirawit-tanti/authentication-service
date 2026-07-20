@@ -120,6 +120,8 @@ export function createRevokeSessionController(
     await dependencies.revokeUserSessionUseCase.execute({
       userId: principal.userId,
 
+      applicationId: principal.applicationId,
+
       sessionId: validationResult.data.sessionId,
 
       ...createRequestAuditContext(request),
@@ -146,6 +148,8 @@ export function createRevokeOtherSessionsController(
 
     const result = await dependencies.revokeOtherUserSessionsUseCase.execute({
       userId: principal.userId,
+
+      applicationId: principal.applicationId,
 
       currentSessionId: principal.sessionId,
 

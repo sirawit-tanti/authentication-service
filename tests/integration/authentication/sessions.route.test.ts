@@ -246,6 +246,8 @@ describe('Authentication session routes', () => {
     expect(revokeUseCase.command).toEqual({
       userId: USER_ID,
 
+      applicationId: APPLICATION_ID,
+
       sessionId: OTHER_SESSION_ID,
 
       requestId: REQUEST_ID,
@@ -319,6 +321,8 @@ describe('Authentication session routes', () => {
 
     expect(revokeOtherUseCase.command).toEqual({
       userId: USER_ID,
+
+      applicationId: APPLICATION_ID,
 
       currentSessionId: CURRENT_SESSION_ID,
 

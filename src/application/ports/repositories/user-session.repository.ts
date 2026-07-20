@@ -16,6 +16,7 @@ export interface UserSessionRecord {
 
 export interface RevokeUserSessionInput extends AuditRequestContext {
   userId: string;
+  applicationId: string;
   sessionId: string;
   revokedAt: Date;
   reason: string;
@@ -23,6 +24,7 @@ export interface RevokeUserSessionInput extends AuditRequestContext {
 
 export interface RevokeOtherUserSessionsInput extends AuditRequestContext {
   userId: string;
+  applicationId: string;
   currentSessionId: string;
   revokedAt: Date;
   reason: string;

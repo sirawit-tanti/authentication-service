@@ -9,6 +9,7 @@ const REVOKE_OTHER_SESSIONS_REASON = 'Revoked by user from another session';
 
 export interface RevokeOtherUserSessionsCommand extends AuditRequestContext {
   userId: string;
+  applicationId: string;
   currentSessionId: string;
 }
 
@@ -31,6 +32,8 @@ export class RevokeOtherUserSessionsUseCase {
   public execute(command: RevokeOtherUserSessionsCommand): Promise<RevokeOtherUserSessionsResult> {
     return this.repository.revokeOthers({
       userId: command.userId,
+
+      applicationId: command.applicationId,
 
       currentSessionId: command.currentSessionId,
 
