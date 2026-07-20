@@ -7,6 +7,8 @@ const RATE_LIMIT_ERROR_CODE = 'RATE_LIMIT_EXCEEDED';
 
 const RATE_LIMIT_MESSAGE = 'Too many requests. Please try again later';
 
+const PAYLOAD_TOO_LARGE_ERROR_CODE = 'FST_ERR_CTP_BODY_TOO_LARGE';
+
 interface FastifyValidationIssue {
   instancePath?: string;
   schemaPath?: string;
@@ -120,6 +122,10 @@ function getClientErrorMessage(error: ErrorWithStatusCode): string {
   return error.message ?? error.error?.message ?? 'The request could not be completed';
 }
 
+function isPayloadTooLargeError(error: ErrorWithStatusCode): boolean {
+  return error.statusCode === 413 || error.code === PAYLOAD_TOO_LARGE_ERROR_CODE;
+}
+
 const errorHandlerImplementation: FastifyPluginCallback = (fastify, _options, done): void => {
   fastify.setNotFoundHandler(async (request, reply): Promise<void> => {
     const message = `Route ${request.method} ${request.url} was not found`;
@@ -140,6 +146,14 @@ const errorHandlerImplementation: FastifyPluginCallback = (fastify, _options, do
             mapValidationDetails(applicationError.validation),
           ),
         );
+
+      return;
+    }
+
+    if (isPayloadTooLargeError(applicationError)) {
+      await reply
+        .status(413)
+        .send(createErrorResponse('PAYLOAD_TOO_LARGE', 'Request body exceeds the allowed size'));
 
       return;
     }

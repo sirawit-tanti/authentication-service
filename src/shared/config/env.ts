@@ -161,6 +161,22 @@ const environmentSchema = z.object({
     .positive()
     .max(24 * 60 * 60 * 1_000)
     .default(60 * 1_000),
+
+  HTTP_BODY_LIMIT_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(10 * 1_024 * 1_024)
+    .default(64 * 1_024),
+
+  CORS_ALLOWED_ORIGINS: z.string().trim().default('http://localhost:3000'),
+
+  CORS_ALLOW_CREDENTIALS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value): boolean => value === 'true'),
+
+  HTTP_HSTS_MAX_AGE_SECONDS: z.coerce.number().int().positive().max(63_072_000).default(31_536_000),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);

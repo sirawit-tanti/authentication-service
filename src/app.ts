@@ -9,6 +9,7 @@ import { authenticationPlugin } from './interfaces/http/modules/authentication/a
 import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
+import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
 
 export interface BuildApplicationOptions {
   logger?: FastifyServerOptions['logger'];
@@ -59,6 +60,8 @@ export async function buildApplication(
       },
     },
 
+    bodyLimit: env.HTTP_BODY_LIMIT_BYTES,
+
     ajv: {
       customOptions: {
         removeAdditional: false,
@@ -74,6 +77,8 @@ export async function buildApplication(
   });
 
   await application.register(errorHandler);
+
+  await application.register(httpSecurityPlugin);
 
   if (options.registerInfrastructure !== false) {
     const infrastructure = options.infrastructure ?? createInfrastructureContainer();
