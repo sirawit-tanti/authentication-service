@@ -91,8 +91,10 @@ class FakeRevokeOtherUserSessionsUseCase implements RevokeOtherUserSessionsExecu
 }
 
 class FakeChangePasswordUseCase implements ChangePasswordExecutor {
+  public command: ChangePasswordCommand | null = null;
+
   public execute(command: ChangePasswordCommand): Promise<void> {
-    void command;
+    this.command = command;
 
     return Promise.resolve();
   }
@@ -362,5 +364,45 @@ describe('Authentication session routes', () => {
     });
 
     expect(revokeOtherUseCase.command).not.toHaveProperty('userAgent');
+  });
+
+  it('changes password in the authenticated application scope', async () => {
+    const response = await application.inject({
+      method: 'POST',
+
+      url: '/api/v1/auth/change-password',
+
+      headers: {
+        authorization: 'Bearer test-access-token',
+      },
+
+      payload: {
+        currentPassword: 'OldPassword#2026',
+
+        newPassword: 'NewPassword#2026',
+      },
+    });
+
+    expect(response.statusCode).toBe(204);
+
+    expect(response.body).toBe('');
+
+    expect(changePasswordUseCase.command).toEqual({
+      userId: USER_ID,
+
+      applicationId: APPLICATION_ID,
+
+      currentSessionId: CURRENT_SESSION_ID,
+
+      currentPassword: 'OldPassword#2026',
+
+      newPassword: 'NewPassword#2026',
+
+      requestId: 'req-1',
+
+      ipAddress: '127.0.0.1',
+
+      userAgent: 'lightMyRequest',
+    });
   });
 });

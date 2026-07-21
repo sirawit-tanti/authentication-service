@@ -72,7 +72,7 @@ export function createChangePasswordController(
     try {
       await dependencies.changePasswordUseCase.execute({
         userId: principal.userId,
-
+        applicationId: principal.applicationId,
         currentSessionId: principal.sessionId,
 
         currentPassword: validationResult.data.currentPassword,

@@ -10,6 +10,7 @@ const PASSWORD_CHANGE_REVOKE_REASON = 'Password changed by user';
 
 export interface ChangePasswordCommand extends AuditRequestContext {
   userId: string;
+  applicationId: string;
   currentSessionId: string;
   currentPassword: string;
   newPassword: string;
@@ -69,16 +70,12 @@ export class ChangePasswordUseCase {
 
     const result = await this.repository.persist({
       userId: user.userId,
-
+      applicationId: command.applicationId,
       expectedVersion: user.version,
-
       newPasswordHash,
       passwordChangedAt,
-
       currentSessionId: command.currentSessionId,
-
       revokeReason: PASSWORD_CHANGE_REVOKE_REASON,
-
       ...(command.requestId === undefined
         ? {}
         : {

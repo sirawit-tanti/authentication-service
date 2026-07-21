@@ -85,7 +85,7 @@ export class PrismaChangePasswordRepository implements ChangePasswordRepository 
         const otherSessions = await transaction.session.findMany({
           where: {
             userId: input.userId,
-
+            applicationId: input.applicationId,
             id: {
               not: input.currentSessionId,
             },
@@ -109,6 +109,7 @@ export class PrismaChangePasswordRepository implements ChangePasswordRepository 
               },
 
               userId: input.userId,
+              applicationId: input.applicationId,
               status: 'ACTIVE',
               revokedAt: null,
             },
@@ -147,6 +148,7 @@ export class PrismaChangePasswordRepository implements ChangePasswordRepository 
           where: {
             id: input.currentSessionId,
             userId: input.userId,
+            applicationId: input.applicationId,
             status: 'ACTIVE',
             revokedAt: null,
           },
@@ -160,6 +162,8 @@ export class PrismaChangePasswordRepository implements ChangePasswordRepository 
 
         await transaction.auditLog.create({
           data: {
+            applicationId: input.applicationId,
+
             actorUserId: input.userId,
 
             action: SECURITY_AUDIT_ACTIONS.PASSWORD_CHANGED,

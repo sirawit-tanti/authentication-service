@@ -12,6 +12,7 @@ export interface FindUserForPasswordChangeInput {
 
 export interface PersistPasswordChangeInput extends AuditRequestContext {
   userId: string;
+  applicationId: string;
   expectedVersion: number;
   newPasswordHash: string;
   passwordChangedAt: Date;

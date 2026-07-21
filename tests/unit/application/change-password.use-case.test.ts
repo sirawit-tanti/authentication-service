@@ -15,6 +15,8 @@ const FIXED_NOW = new Date('2026-07-17T00:00:00.000Z');
 
 const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
 
+const APPLICATION_ID = 'd797d3eb-41ce-40cf-9d79-30b15fe49042';
+
 const SESSION_ID = 'be4c57d3-b4c9-4eb5-a975-92adb74f69c8';
 
 const REQUEST_ID = 'change-password-request-id';
@@ -86,6 +88,8 @@ describe('ChangePasswordUseCase', () => {
     await useCase.execute({
       userId: USER_ID,
 
+      applicationId: APPLICATION_ID,
+
       currentSessionId: SESSION_ID,
 
       currentPassword: 'OldPassword#2026',
@@ -103,6 +107,9 @@ describe('ChangePasswordUseCase', () => {
 
     expect(repository.persistInput).toEqual({
       userId: USER_ID,
+
+      applicationId: APPLICATION_ID,
+
       expectedVersion: 4,
 
       newPasswordHash: 'hash:NewPassword#2026',
@@ -127,6 +134,8 @@ describe('ChangePasswordUseCase', () => {
     await useCase.execute({
       userId: USER_ID,
 
+      applicationId: APPLICATION_ID,
+
       currentSessionId: SESSION_ID,
 
       currentPassword: 'OldPassword#2026',
@@ -150,6 +159,8 @@ describe('ChangePasswordUseCase', () => {
       useCase.execute({
         userId: USER_ID,
 
+        applicationId: APPLICATION_ID,
+
         currentSessionId: SESSION_ID,
 
         currentPassword: 'IncorrectPassword#2026',
@@ -169,6 +180,8 @@ describe('ChangePasswordUseCase', () => {
     await expect(
       useCase.execute({
         userId: USER_ID,
+
+        applicationId: APPLICATION_ID,
 
         currentSessionId: SESSION_ID,
 
