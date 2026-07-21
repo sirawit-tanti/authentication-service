@@ -15,6 +15,11 @@ import type {
   RevokeOtherUserSessionsExecutor,
   RevokeUserSessionExecutor,
 } from '../../../src/interfaces/http/modules/authentication/sessions.controller.js';
+import type {
+  GetUserAuthorizationCommand,
+  GetUserAuthorizationResult,
+} from '@/application/use-cases/authorization/get-user-authorization.use-case.js';
+import type { GetUserAuthorizationExecutor } from '@/interfaces/http/modules/authentication/authorization.controller.js';
 import { errorHandler } from '../../../src/shared/errors/error-handler.js';
 
 const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
@@ -100,6 +105,20 @@ class FakeChangePasswordUseCase implements ChangePasswordExecutor {
   }
 }
 
+class FakeGetUserAuthorizationUseCase implements GetUserAuthorizationExecutor {
+  public command: GetUserAuthorizationCommand | null = null;
+
+  public execute(command: GetUserAuthorizationCommand): Promise<GetUserAuthorizationResult> {
+    this.command = command;
+
+    return Promise.resolve({
+      roles: ['ADMINISTRATOR'],
+
+      permissions: ['audit_logs.read', 'roles.read'],
+    });
+  }
+}
+
 function createGuard(): AuthenticationGuard {
   return function authenticationGuard(request, reply): Promise<void> {
     void reply;
@@ -129,6 +148,8 @@ describe('Authentication session routes', () => {
 
   let changePasswordUseCase: FakeChangePasswordUseCase;
 
+  let getUserAuthorizationUseCase: FakeGetUserAuthorizationUseCase;
+
   beforeEach(async () => {
     application = Fastify({
       logger: false,
@@ -150,6 +171,8 @@ describe('Authentication session routes', () => {
 
     changePasswordUseCase = new FakeChangePasswordUseCase();
 
+    getUserAuthorizationUseCase = new FakeGetUserAuthorizationUseCase();
+
     await application.register(errorHandler);
 
     await application.register(protectedAuthenticationRoutes, {
@@ -164,6 +187,8 @@ describe('Authentication session routes', () => {
       revokeOtherUserSessionsUseCase: revokeOtherUseCase,
 
       changePasswordUseCase,
+
+      getUserAuthorizationUseCase,
     });
 
     await application.ready();
@@ -403,6 +428,36 @@ describe('Authentication session routes', () => {
       ipAddress: '127.0.0.1',
 
       userAgent: 'lightMyRequest',
+    });
+  });
+
+  it('returns authorization for the authenticated application', async () => {
+    const response = await application.inject({
+      method: 'GET',
+
+      url: '/api/v1/auth/authorization',
+
+      headers: {
+        authorization: 'Bearer test-access-token',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+
+    expect(response.json()).toEqual({
+      success: true,
+
+      data: {
+        roles: ['ADMINISTRATOR'],
+
+        permissions: ['audit_logs.read', 'roles.read'],
+      },
+    });
+
+    expect(getUserAuthorizationUseCase.command).toEqual({
+      userId: USER_ID,
+
+      applicationId: APPLICATION_ID,
     });
   });
 });

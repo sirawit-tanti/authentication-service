@@ -26,6 +26,11 @@ import {
   type ChangePasswordRequestBody,
 } from './change-password.schema.js';
 import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
+import {
+  createAuthorizationController,
+  type GetUserAuthorizationExecutor,
+} from './authorization.controller.js';
+import { authorizationRouteSchema } from './authorization.schema.js';
 
 export interface ProtectedAuthenticationRoutesOptions {
   authenticationGuard: AuthenticationGuard;
@@ -37,6 +42,8 @@ export interface ProtectedAuthenticationRoutesOptions {
   revokeOtherUserSessionsUseCase: RevokeOtherUserSessionsExecutor;
 
   changePasswordUseCase: ChangePasswordExecutor;
+
+  getUserAuthorizationUseCase: GetUserAuthorizationExecutor;
 }
 
 interface RevokeSessionRequest {
@@ -69,6 +76,18 @@ export const protectedAuthenticationRoutes: FastifyPluginCallback<
       preHandler: options.authenticationGuard,
     },
     meController,
+  );
+
+  fastify.get(
+    '/authorization',
+    {
+      schema: authorizationRouteSchema,
+
+      preHandler: options.authenticationGuard,
+    },
+    createAuthorizationController({
+      getUserAuthorizationUseCase: options.getUserAuthorizationUseCase,
+    }),
   );
 
   fastify.post<ChangePasswordRouteRequest>(

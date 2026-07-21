@@ -41,6 +41,8 @@ import { ResetPasswordUseCase } from '@/application/use-cases/authentication/res
 import { PrismaResetPasswordRepository } from '@/infrastructure/database/repositories/prisma-reset-password.repository.js';
 import { resetPasswordRoutes } from './reset-password.routes.js';
 import { registerAuthenticationRateLimit } from '../../rate-limit/authentication-rate-limit.plugin.js';
+import { GetUserAuthorizationUseCase } from '@/application/use-cases/authorization/get-user-authorization.use-case.js';
+import { PrismaUserAuthorizationQueryRepository } from '@/infrastructure/database/repositories/prisma-user-authorization-query.repository.js';
 
 const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): Promise<void> => {
   await registerAuthenticationRateLimit(fastify);
@@ -51,6 +53,12 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
     repository: new PrismaChangePasswordRepository(fastify.infrastructure.prisma),
 
     passwordHasher,
+    clock: fastify.infrastructure.clock,
+  });
+
+  const getUserAuthorizationUseCase = new GetUserAuthorizationUseCase({
+    repository: new PrismaUserAuthorizationQueryRepository(fastify.infrastructure.prisma),
+
     clock: fastify.infrastructure.clock,
   });
 
@@ -228,6 +236,7 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
     revokeUserSessionUseCase,
     revokeOtherUserSessionsUseCase,
     changePasswordUseCase,
+    getUserAuthorizationUseCase,
   });
 };
 

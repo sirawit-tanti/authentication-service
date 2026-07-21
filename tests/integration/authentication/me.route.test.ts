@@ -17,6 +17,11 @@ import type { RevokeOtherUserSessionsCommand } from '../../../src/application/us
 import type { RevokeOtherUserSessionsExecutor } from '../../../src/interfaces/http/modules/authentication/sessions.controller.js';
 import type { ChangePasswordCommand } from '../../../src/application/use-cases/authentication/change-password.use-case.js';
 import type { ChangePasswordExecutor } from '../../../src/interfaces/http/modules/authentication/change-password.controller.js';
+import type {
+  GetUserAuthorizationCommand,
+  GetUserAuthorizationResult,
+} from '../../../src/application/use-cases/authorization/get-user-authorization.use-case.js';
+import type { GetUserAuthorizationExecutor } from '../../../src/interfaces/http/modules/authentication/authorization.controller.js';
 
 const USER_ID = 'f7ee2402-e515-47fa-b79f-c700e82b4451';
 
@@ -59,6 +64,17 @@ class FakeChangePasswordUseCase implements ChangePasswordExecutor {
     void command;
 
     return Promise.resolve();
+  }
+}
+
+class FakeGetUserAuthorizationUseCase implements GetUserAuthorizationExecutor {
+  public execute(command: GetUserAuthorizationCommand): Promise<GetUserAuthorizationResult> {
+    void command;
+
+    return Promise.resolve({
+      roles: [],
+      permissions: [],
+    });
   }
 }
 
@@ -111,6 +127,8 @@ describe('GET /api/v1/auth/me', () => {
       revokeOtherUserSessionsUseCase: new FakeRevokeOtherUserSessionsUseCase(),
 
       changePasswordUseCase: new FakeChangePasswordUseCase(),
+
+      getUserAuthorizationUseCase: new FakeGetUserAuthorizationUseCase(),
     });
 
     await application.ready();
@@ -157,6 +175,8 @@ describe('GET /api/v1/auth/me', () => {
       revokeOtherUserSessionsUseCase: new FakeRevokeOtherUserSessionsUseCase(),
 
       changePasswordUseCase: new FakeChangePasswordUseCase(),
+
+      getUserAuthorizationUseCase: new FakeGetUserAuthorizationUseCase(),
     });
 
     await application.ready();
