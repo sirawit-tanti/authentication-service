@@ -9,6 +9,7 @@ import { authenticationPlugin } from './interfaces/http/modules/authentication/a
 import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
 import { auditingPlugin } from './interfaces/http/modules/auditing/auditing.plugin.js';
 import { authorizationPlugin } from './interfaces/http/modules/authorization/authorization.plugin.js';
+import { usersPlugin } from './interfaces/http/modules/users/users.plugin.js';
 import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
@@ -94,6 +95,8 @@ export async function buildApplication(
     await application.register(auditingPlugin);
 
     await application.register(authorizationPlugin);
+
+    await application.register(usersPlugin);
   }
 
   await application.register(apiV1Routes, {

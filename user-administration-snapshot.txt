@@ -1,0 +1,1122 @@
+=== USER MODEL ===
+model User {
+  id String @id @default(uuid()) @db.Uuid
+
+  email           String @db.VarChar(320)
+  normalizedEmail String @unique(map: "users_normalized_email_key") @map("normalized_email") @db.VarChar(320)
+  passwordHash    String @map("password_hash") @db.VarChar(255)
+
+  status        UserStatus @default(PENDING_VERIFICATION)
+  emailVerified Boolean    @default(false) @map("email_verified")
+
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz(3)
+
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamptz(3)
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz(3)
+
+  version Int @default(1)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  profile                 UserProfile?
+  userRoles               UserRole[]
+  sessions                Session[]
+  devices                 Device[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+  auditLogs               AuditLog[]
+  apiKeys                 ApiKey[]
+  oauthAccounts           OAuthAccount[]
+
+  @@index([status], map: "users_status_idx")
+  @@index([deletedAt], map: "users_deleted_at_idx")
+  @@map("users")
+}
+
+=== USER STATUS ENUM ===
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DISABLED
+
+  @@map("user_status")
+}
+
+=== SESSION MODEL ===
+model Session {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId        String  @map("user_id") @db.Uuid
+  applicationId String  @map("application_id") @db.Uuid
+  deviceId      String? @map("device_id") @db.Uuid
+
+  status SessionStatus @default(ACTIVE)
+
+  ipAddress String? @map("ip_address") @db.Inet
+  userAgent String? @map("user_agent") @db.Text
+
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at") @db.Timestamptz(3)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokeReason   String?   @map("revoke_reason") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application   Application    @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  device        Device?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  refreshTokens RefreshToken[]
+
+  @@index([userId, status], map: "sessions_user_status_idx")
+  @@index([applicationId, status], map: "sessions_application_status_idx")
+  @@index([expiresAt], map: "sessions_expires_at_idx")
+  @@index([deviceId], map: "sessions_device_id_idx")
+  @@map("sessions")
+}
+
+=== SESSION STATUS ENUM ===
+enum SessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+
+  @@map("session_status")
+}
+
+=== USER DOMAIN ENTITY ===
+import type { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
+import type { UserStatus } from '../types/user-status.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
+
+export interface UserState {
+  id: string;
+  email: EmailAddress;
+  passwordHash: string;
+  status: UserStatus;
+  emailVerified: boolean;
+  failedLoginAttempts: number;
+  lockedUntil: Date | null;
+  passwordChangedAt: Date | null;
+  lastLoginAt: Date | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreatePendingUserInput {
+  id: string;
+  email: EmailAddress;
+  passwordHash: string;
+  now: Date;
+}
+
+export interface RecordFailedLoginOptions {
+  maximumAttempts: number;
+  lockDurationMilliseconds: number;
+  now: Date;
+}
+
+export class User {
+  private readonly id: string;
+
+  private email: EmailAddress;
+
+  private passwordHash: string;
+
+  private status: UserStatus;
+
+  private emailVerified: boolean;
+
+  private failedLoginAttempts: number;
+
+  private lockedUntil: Date | null;
+
+  private passwordChangedAt: Date | null;
+
+  private lastLoginAt: Date | null;
+
+  private version: number;
+
+  private readonly createdAt: Date;
+
+  private updatedAt: Date;
+
+  private constructor(state: UserState) {
+    User.validateState(state);
+
+    this.id = state.id;
+    this.email = state.email;
+    this.passwordHash = state.passwordHash;
+    this.status = state.status;
+    this.emailVerified = state.emailVerified;
+    this.failedLoginAttempts = state.failedLoginAttempts;
+    this.lockedUntil = state.lockedUntil;
+    this.passwordChangedAt = state.passwordChangedAt;
+    this.lastLoginAt = state.lastLoginAt;
+    this.version = state.version;
+    this.createdAt = new Date(state.createdAt);
+    this.updatedAt = new Date(state.updatedAt);
+  }
+
+  public static createPending(input: CreatePendingUserInput): User {
+    return new User({
+      id: input.id,
+      email: input.email,
+      passwordHash: input.passwordHash,
+      status: 'PENDING_VERIFICATION',
+      emailVerified: false,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      passwordChangedAt: input.now,
+      lastLoginAt: null,
+      version: 1,
+      createdAt: input.now,
+      updatedAt: input.now,
+    });
+  }
+
+  public static restore(state: UserState): User {
+    return new User(state);
+  }
+
+  public getId(): string {
+    return this.id;
+  }
+
+  public getEmail(): EmailAddress {
+    return this.email;
+  }
+
+  public getPasswordHash(): string {
+    return this.passwordHash;
+  }
+
+  public getStatus(): UserStatus {
+    return this.status;
+  }
+
+  public isEmailVerified(): boolean {
+    return this.emailVerified;
+  }
+
+  public getFailedLoginAttempts(): number {
+    return this.failedLoginAttempts;
+  }
+
+  public getLockedUntil(): Date | null {
+    return this.lockedUntil === null ? null : new Date(this.lockedUntil);
+  }
+
+  public getPasswordChangedAt(): Date | null {
+    return this.passwordChangedAt === null ? null : new Date(this.passwordChangedAt);
+  }
+
+  public getLastLoginAt(): Date | null {
+    return this.lastLoginAt === null ? null : new Date(this.lastLoginAt);
+  }
+
+  public getVersion(): number {
+    return this.version;
+  }
+
+  public getCreatedAt(): Date {
+    return new Date(this.createdAt);
+  }
+
+  public getUpdatedAt(): Date {
+    return new Date(this.updatedAt);
+  }
+
+  public isLocked(now: Date): boolean {
+    return this.lockedUntil !== null && this.lockedUntil.getTime() > now.getTime();
+  }
+
+  public canAuthenticate(now: Date): boolean {
+    return this.status === 'ACTIVE' && this.emailVerified && !this.isLocked(now);
+  }
+
+  public verifyEmail(now: Date): void {
+    if (this.status === 'DISABLED') {
+      throw new DomainValidationError('Disabled user cannot verify email', [
+        {
+          code: 'USER_DISABLED',
+          message: 'Disabled user cannot verify email',
+        },
+      ]);
+    }
+
+    this.emailVerified = true;
+
+    if (this.status === 'PENDING_VERIFICATION') {
+      this.status = 'ACTIVE';
+    }
+
+    this.touch(now);
+  }
+
+  public recordFailedLogin(options: RecordFailedLoginOptions): void {
+    if (options.maximumAttempts <= 0) {
+      throw new DomainValidationError('Maximum login attempts must be positive', [
+        {
+          code: 'INVALID_MAXIMUM_LOGIN_ATTEMPTS',
+          message: 'Maximum login attempts must be greater than zero',
+        },
+      ]);
+    }
+
+    if (options.lockDurationMilliseconds <= 0) {
+      throw new DomainValidationError('Account lock duration must be positive', [
+        {
+          code: 'INVALID_ACCOUNT_LOCK_DURATION',
+          message: 'Account lock duration must be greater than zero',
+        },
+      ]);
+    }
+
+    this.failedLoginAttempts += 1;
+
+    if (this.failedLoginAttempts >= options.maximumAttempts) {
+      this.lockedUntil = new Date(options.now.getTime() + options.lockDurationMilliseconds);
+    }
+
+    this.touch(options.now);
+  }
+
+  public recordSuccessfulLogin(now: Date): void {
+    this.failedLoginAttempts = 0;
+    this.lockedUntil = null;
+    this.lastLoginAt = new Date(now);
+
+    this.touch(now);
+  }
+
+  public changePassword(newPasswordHash: string, now: Date): void {
+    User.validatePasswordHash(newPasswordHash);
+
+    if (newPasswordHash === this.passwordHash) {
+      throw new DomainValidationError('New password must be different from the current password', [
+        {
+          code: 'PASSWORD_UNCHANGED',
+          field: 'password',
+          message: 'New password must be different from the current password',
+        },
+      ]);
+    }
+
+    this.passwordHash = newPasswordHash;
+    this.passwordChangedAt = new Date(now);
+    this.failedLoginAttempts = 0;
+    this.lockedUntil = null;
+
+    this.touch(now);
+  }
+
+  public suspend(now: Date): void {
+    if (this.status === 'DISABLED') {
+      throw new DomainValidationError('Disabled user cannot be suspended', [
+        {
+          code: 'USER_DISABLED',
+          message: 'Disabled user cannot be suspended',
+        },
+      ]);
+    }
+
+    this.status = 'SUSPENDED';
+    this.touch(now);
+  }
+
+  public activate(now: Date): void {
+    if (!this.emailVerified) {
+      throw new DomainValidationError('Unverified user cannot be activated', [
+        {
+          code: 'EMAIL_NOT_VERIFIED',
+          message: 'User email must be verified befor activation',
+        },
+      ]);
+    }
+
+    if (this.status === 'DISABLED') {
+      throw new DomainValidationError('Disabled user cannot be activated', [
+        {
+          code: 'USER_DISABLED',
+          message: 'Disabled user cannot be activated',
+        },
+      ]);
+    }
+
+    this.status = 'ACTIVE';
+    this.touch(now);
+  }
+
+  public disable(now: Date): void {
+    this.status = 'DISABLED';
+    this.lockedUntil = null;
+
+    this.touch(now);
+  }
+
+  public toState(): UserState {
+    return {
+      id: this.id,
+      email: this.email,
+      passwordHash: this.passwordHash,
+      status: this.status,
+      emailVerified: this.emailVerified,
+      failedLoginAttempts: this.failedLoginAttempts,
+      lockedUntil: this.lockedUntil === null ? null : new Date(this.lockedUntil),
+      passwordChangedAt: this.passwordChangedAt === null ? null : new Date(this.passwordChangedAt),
+      lastLoginAt: this.lastLoginAt === null ? null : new Date(this.lastLoginAt),
+      version: this.version,
+      createdAt: new Date(this.createdAt),
+      updatedAt: new Date(this.updatedAt),
+    };
+  }
+
+  private touch(now: Date): void {
+    this.updatedAt = new Date(now);
+    this.version += 1;
+  }
+
+  private static validateState(state: UserState): void {
+    const issues: {
+      code: string;
+      field?: string;
+      message: string;
+    }[] = [];
+
+    if (state.id.trim().length === 0) {
+      issues.push({
+        code: 'USER_ID_REQUIRED',
+        field: 'id',
+        message: 'User ID is required',
+      });
+    }
+
+    if (state.failedLoginAttempts < 0) {
+      issues.push({
+        code: 'INVALID_FAILED_LOGIN_ATTEMPTS',
+        field: 'failedLoginAttempts',
+        message: 'Failed login attempts must not be negative',
+      });
+    }
+
+    if (state.version <= 0) {
+      issues.push({
+        code: 'INVALID_USER_VERSION',
+        field: 'version',
+        message: 'User version must be greater than zero',
+      });
+    }
+
+    try {
+      User.validatePasswordHash(state.passwordHash);
+    } catch (error: unknown) {
+      if (error instanceof DomainValidationError) {
+        issues.push(...error.issues);
+      } else {
+        throw error;
+      }
+    }
+
+    if (issues.length > 0) {
+      throw new DomainValidationError('User state is invalid', issues);
+    }
+  }
+
+  private static validatePasswordHash(passwordHash: string): void {
+    if (passwordHash.trim().length === 0) {
+      throw new DomainValidationError('Password hash is required', [
+        {
+          code: 'PASSWORD_HASH_REQURIED',
+          field: 'passwordHash',
+          message: 'Password hash is required',
+        },
+      ]);
+    }
+  }
+}
+
+=== PRISMA USER MAPPER ===
+import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
+import { User } from '@/domain/users/entities/user.entity.js';
+import { isUserStatus, type UserStatus } from '@/domain/users/types/user-status.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
+
+export interface PrismaUserRecord {
+  id: string;
+  email: string;
+  normalizedEmail: string;
+  passwordHash: string;
+  status: string;
+  emailVerified: boolean;
+  failedLoginAttempts: number;
+  lockedUntil: Date | null;
+  passwordChangedAt: Date | null;
+  lastLoginAt: Date | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PrismaUserCreateData {
+  id: string;
+  email: string;
+  normalizedEmail: string;
+  passwordHash: string;
+  status: UserStatus;
+  emailVerified: boolean;
+  failedLoginAttempts: number;
+  lockedUntil: Date | null;
+  passwordChangedAt: Date | null;
+  lastLoginAt: Date | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PrismaUserUpdateData {
+  email: string;
+  normalizedEmail: string;
+  passwordHash: string;
+  status: UserStatus;
+  emailVerified: boolean;
+  failedLoginAttempts: number;
+  lockedUntil: Date | null;
+  passwordChangedAt: Date | null;
+  lastLoginAt: Date | null;
+  version: number;
+  updatedAt: Date;
+}
+
+export function mapPrismaUserToDomain(record: PrismaUserRecord): User {
+  if (!isUserStatus(record.status)) {
+    throw new DomainValidationError('Stored user status is unsupported', [
+      {
+        code: 'UNSUPPORTED_USER_STATUS',
+        field: 'status',
+        message: `
+Unsupported user status: $ { record.status }
+`,
+      },
+    ]);
+  }
+
+  const email = EmailAddress.create(record.email);
+
+  if (email.normalizedValue !== record.normalizedEmail) {
+    throw new DomainValidationError('Stored normalized email is inconsistent', [
+      {
+        code: 'INCONSISTENT_NORMALIZED_EMAIL',
+        field: 'normalizedEmail',
+        message: 'Stored normalized email does not match the user email',
+      },
+    ]);
+  }
+
+  return User.restore({
+    id: record.id,
+    email,
+    passwordHash: record.passwordHash,
+    status: record.status,
+    emailVerified: record.emailVerified,
+    failedLoginAttempts: record.failedLoginAttempts,
+    lockedUntil: record.lockedUntil,
+    passwordChangedAt: record.passwordChangedAt,
+    lastLoginAt: record.lastLoginAt,
+    version: record.version,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  });
+}
+
+export function mapUserToPrismaCreateData(user: User): PrismaUserCreateData {
+  const state = user.toState();
+
+  return {
+    id: state.id,
+    email: state.email.value,
+    normalizedEmail: state.email.normalizedValue,
+    passwordHash: state.passwordHash,
+    status: state.status,
+    emailVerified: state.emailVerified,
+    failedLoginAttempts: state.failedLoginAttempts,
+    lockedUntil: state.lockedUntil,
+    passwordChangedAt: state.passwordChangedAt,
+    lastLoginAt: state.lastLoginAt,
+    version: state.version,
+    createdAt: state.createdAt,
+    updatedAt: state.updatedAt,
+  };
+}
+
+export function mapUserToPrismaUpdateData(user: User): PrismaUserUpdateData {
+  const state = user.toState();
+
+  return {
+    email: state.email.value,
+    normalizedEmail: state.email.normalizedValue,
+    passwordHash: state.passwordHash,
+    status: state.status,
+    emailVerified: state.emailVerified,
+    failedLoginAttempts: state.failedLoginAttempts,
+    lockedUntil: state.lockedUntil,
+    passwordChangedAt: state.passwordChangedAt,
+    lastLoginAt: state.lastLoginAt,
+    version: state.version,
+    updatedAt: state.updatedAt,
+  };
+}
+
+=== SECURITY AUDIT ACTIONS ===
+export const SECURITY_AUDIT_ACTIONS = {
+  LOGIN_SUCCEEDED: 'LOGIN_SUCCEEDED',
+  LOGIN_FAILED: 'LOGIN_FAILED',
+  ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+  PASSWORD_CHANGED: 'PASSWORD_CHANGED',
+  PASSWORD_RESET_REQUESTED: 'PASSWORD_RESET_REQUESTED',
+  PASSWORD_RESET_COMPLETED: 'PASSWORD_RESET_COMPLETED',
+  LOGOUT_SUCCEEDED: 'LOGOUT_SUCCEEDED',
+  SESSION_REVOKED: 'SESSION_REVOKED',
+  OTHER_SESSIONS_REVOKED: 'OTHER_SESSIONS_REVOKED',
+  EMAIL_VERIFIED: 'EMAIL_VERIFIED',
+  ROLE_ASSIGNMENTS_REPLACED: 'ROLE_ASSIGNMENTS_REPLACED',
+  ROLE_CREATED: 'ROLE_CREATED',
+  ROLE_UPDATED: 'ROLE_UPDATED',
+  ROLE_PERMISSIONS_REPLACED: 'ROLE_PERMISSIONS_REPLACED',
+} as const;
+
+export type SecurityAuditAction =
+  (typeof SECURITY_AUDIT_ACTIONS)[keyof typeof SECURITY_AUDIT_ACTIONS];
+
+=== APP ===
+import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions } from 'fastify';
+
+import {
+  createInfrastructureContainer,
+  type InfrastructureContainer,
+} from './infrastructure/container/infrastructure-container.js';
+import { infrastructurePlugin } from './infrastructure/container/infrastructure.plugin.js';
+import { authenticationPlugin } from './interfaces/http/modules/authentication/authentication.plugin.js';
+import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
+import { auditingPlugin } from './interfaces/http/modules/auditing/auditing.plugin.js';
+import { authorizationPlugin } from './interfaces/http/modules/authorization/authorization.plugin.js';
+import { apiV1Routes } from './interfaces/http/routes/index.js';
+import { env } from './shared/config/env.js';
+import { errorHandler } from './shared/errors/error-handler.js';
+
+export interface BuildApplicationOptions {
+  logger?: FastifyServerOptions['logger'];
+  registerInfrastructure?: boolean;
+  infrastructure?: InfrastructureContainer;
+}
+
+export async function buildApplication(
+  options: BuildApplicationOptions = {},
+): Promise<FastifyInstance> {
+  const application = Fastify({
+    logger: options.logger ?? {
+      level: env.LOG_LEVEL,
+
+      redact: {
+        paths: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'request.headers.authorization',
+          'request.headers.cookie',
+          'req.body.password',
+          'req.body.refreshToken',
+          'request.body.password',
+          'request.body.refreshToken',
+          'req.body.currentPassword',
+          'request.body.currentPassword',
+          'req.body.newPassword',
+          'request.body.newPassword',
+          'req.body.token',
+          'request.body.token',
+          'password',
+          'currentPassword',
+          'newPassword',
+          'passwordHash',
+          'token',
+          'tokenHash',
+          'verificationToken',
+          'resetToken',
+          'accessToken',
+          'refreshToken',
+          'clientSecret',
+          'clientSecretHash',
+          'apiKey',
+          'keyHash',
+          'refreshToken',
+        ],
+        censor: '[REDACTED]',
+      },
+    },
+
+    bodyLimit: env.HTTP_BODY_LIMIT_BYTES,
+
+    ajv: {
+      customOptions: {
+        removeAdditional: false,
+      },
+    },
+
+    requestIdHeader: 'x-request-id',
+
+    logController: new LogController({
+      requestIdLogLabel: 'requestId',
+      disableRequestLogging: false,
+    }),
+  });
+
+  await application.register(errorHandler);
+
+  await application.register(httpSecurityPlugin);
+
+  if (options.registerInfrastructure !== false) {
+    const infrastructure = options.infrastructure ?? createInfrastructureContainer();
+
+    await application.register(infrastructurePlugin, {
+      container: infrastructure,
+    });
+
+    await application.register(authenticationPlugin);
+
+    await application.register(auditingPlugin);
+
+    await application.register(authorizationPlugin);
+  }
+
+  await application.register(apiV1Routes, {
+    prefix: '/api/v1',
+  });
+
+  return application;
+}
+
+=== AUTHORIZATION PLUGIN ===
+import type { FastifyPluginAsync } from 'fastify';
+import fastifyPlugin from 'fastify-plugin';
+
+import { CreateRoleUseCase } from '@/application/use-cases/authorization/create-role.use-case.js';
+import { GetUserRolesUseCase } from '@/application/use-cases/authorization/get-user-roles.use-case.js';
+import { ListPermissionsUseCase } from '@/application/use-cases/authorization/list-permissions.use-case.js';
+import { ListRolesUseCase } from '@/application/use-cases/authorization/list-roles.use-case.js';
+import { ReplaceRolePermissionsUseCase } from '@/application/use-cases/authorization/replace-role-permissions.use-case.js';
+import { ReplaceUserRolesUseCase } from '@/application/use-cases/authorization/replace-user-roles.use-case.js';
+import { UpdateRoleUseCase } from '@/application/use-cases/authorization/update-role.use-case.js';
+import { JwtAccessTokenService } from '@/infrastructure/authentication/jwt-access-token.service.js';
+import { PrismaPermissionChecker } from '@/infrastructure/authorization/prisma-permission-checker.js';
+import { PrismaAccessSessionRepository } from '@/infrastructure/database/repositories/prisma-access-session.repository.js';
+import { PrismaAuthorizationCatalogQueryRepository } from '@/infrastructure/database/repositories/prisma-authorization-catalog-query.repository.js';
+import { PrismaRoleManagementRepository } from '@/infrastructure/database/repositories/prisma-role-management.repository.js';
+import { PrismaUserRoleAssignmentRepository } from '@/infrastructure/database/repositories/prisma-user-role-assignment.repository.js';
+import { env } from '@/shared/config/env.js';
+import { createAuthenticationGuard } from '../../authentication/authentication-guard.js';
+import { createPermissionGuard } from '../../authorization/permission-guard.js';
+import { authorizationCatalogRoutes } from './authorization-catalog.routes.js';
+import { roleManagementRoutes } from './role-management.routes.js';
+
+const ROLES_READ_PERMISSION = 'roles.read';
+
+const ROLES_ASSIGN_PERMISSION = 'roles.assign';
+
+const ROLES_MANAGE_PERMISSION = 'roles.manage';
+
+const authorizationPluginImplementation: FastifyPluginAsync = async (fastify): Promise<void> => {
+  const accessTokenService = new JwtAccessTokenService({
+    secret: env.JWT_ACCESS_TOKEN_SECRET,
+
+    issuer: env.JWT_ACCESS_TOKEN_ISSUER,
+
+    audience: env.JWT_ACCESS_TOKEN_AUDIENCE,
+
+    timeToLiveMinutes: env.JWT_ACCESS_TOKEN_TTL_MINUTES,
+  });
+
+  const authenticationGuard = createAuthenticationGuard({
+    accessTokenService,
+
+    accessSessionRepository: new PrismaAccessSessionRepository(fastify.infrastructure.prisma),
+
+    clock: fastify.infrastructure.clock,
+  });
+
+  const permissionChecker = new PrismaPermissionChecker(fastify.infrastructure.prisma);
+
+  const rolesReadPermissionGuard = createPermissionGuard({
+    permissionChecker,
+
+    clock: fastify.infrastructure.clock,
+
+    permissionCode: ROLES_READ_PERMISSION,
+  });
+
+  const rolesAssignPermissionGuard = createPermissionGuard({
+    permissionChecker,
+
+    clock: fastify.infrastructure.clock,
+
+    permissionCode: ROLES_ASSIGN_PERMISSION,
+  });
+
+  const rolesManagePermissionGuard = createPermissionGuard({
+    permissionChecker,
+
+    clock: fastify.infrastructure.clock,
+
+    permissionCode: ROLES_MANAGE_PERMISSION,
+  });
+
+  const catalogRepository = new PrismaAuthorizationCatalogQueryRepository(
+    fastify.infrastructure.prisma,
+  );
+
+  const listRolesUseCase = new ListRolesUseCase(catalogRepository);
+
+  const listPermissionsUseCase = new ListPermissionsUseCase(catalogRepository);
+
+  const userRoleAssignmentRepository = new PrismaUserRoleAssignmentRepository(
+    fastify.infrastructure.prisma,
+  );
+
+  const getUserRolesUseCase = new GetUserRolesUseCase({
+    repository: userRoleAssignmentRepository,
+
+    clock: fastify.infrastructure.clock,
+  });
+
+  const replaceUserRolesUseCase = new ReplaceUserRolesUseCase({
+    repository: userRoleAssignmentRepository,
+
+    clock: fastify.infrastructure.clock,
+  });
+
+  const roleManagementRepository = new PrismaRoleManagementRepository(
+    fastify.infrastructure.prisma,
+  );
+
+  const createRoleUseCase = new CreateRoleUseCase({
+    repository: roleManagementRepository,
+
+    clock: fastify.infrastructure.clock,
+  });
+
+  const updateRoleUseCase = new UpdateRoleUseCase({
+    repository: roleManagementRepository,
+
+    clock: fastify.infrastructure.clock,
+  });
+
+  const replaceRolePermissionsUseCase = new ReplaceRolePermissionsUseCase({
+    repository: roleManagementRepository,
+
+    clock: fastify.infrastructure.clock,
+  });
+
+  await fastify.register(authorizationCatalogRoutes, {
+    prefix: '/api/v1/authorization',
+
+    authenticationGuard,
+
+    rolesReadPermissionGuard,
+
+    listRolesUseCase,
+
+    listPermissionsUseCase,
+
+    rolesAssignPermissionGuard,
+
+    getUserRolesUseCase,
+
+    replaceUserRolesUseCase,
+  });
+
+  await fastify.register(roleManagementRoutes, {
+    prefix: '/api/v1/authorization',
+
+    authenticationGuard,
+
+    rolesManagePermissionGuard,
+
+    createRoleUseCase,
+
+    updateRoleUseCase,
+
+    replaceRolePermissionsUseCase,
+  });
+};
+
+export const authorizationPlugin = fastifyPlugin(authorizationPluginImplementation, {
+  name: 'authorization-plugin',
+
+  dependencies: ['infrastructure-plugin'],
+});
+
+=== API RESPONSE ===
+export interface ApiSuccessResponse<TData> {
+  success: true;
+  data: TData;
+}
+
+export interface ApiErrorDetail {
+  code: string;
+  field?: string;
+  message: string;
+}
+
+export interface ApiErrorResponse {
+  success: false;
+
+  error: {
+    code: string;
+    message: string;
+    details?: ApiErrorDetail[];
+  };
+}
+
+export function createSuccessResponse<TData>(data: TData): ApiSuccessResponse<TData> {
+  return {
+    success: true,
+    data,
+  };
+}
+
+export function createErrorResponse(
+  code: string,
+  message: string,
+  details?: ApiErrorDetail[],
+): ApiErrorResponse {
+  if (details === undefined || details.length === 0) {
+    return {
+      success: false,
+
+      error: {
+        code,
+        message,
+      },
+    };
+  }
+
+  return {
+    success: false,
+
+    error: {
+      code,
+      message,
+      details,
+    },
+  };
+}
+
+=== ERROR HANDLER ===
+import type { FastifyError, FastifyPluginCallback } from 'fastify';
+import fastifyPlugin from 'fastify-plugin';
+
+import { createErrorResponse, type ApiErrorDetail } from '../http/api-response.js';
+
+const RATE_LIMIT_ERROR_CODE = 'RATE_LIMIT_EXCEEDED';
+
+const RATE_LIMIT_MESSAGE = 'Too many requests. Please try again later';
+
+const PAYLOAD_TOO_LARGE_ERROR_CODE = 'FST_ERR_CTP_BODY_TOO_LARGE';
+
+interface FastifyValidationIssue {
+  instancePath?: string;
+  schemaPath?: string;
+  keyword?: string;
+  message?: string;
+  params?: Record<string, unknown>;
+}
+
+interface ErrorWithStatusCode {
+  statusCode?: number;
+  code?: string;
+  message?: string;
+  validation?: FastifyValidationIssue[];
+
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function toApplicationError(error: unknown): ErrorWithStatusCode {
+  if (!isObject(error)) {
+    return {};
+  }
+
+  const applicationError: ErrorWithStatusCode = {};
+
+  if ('statusCode' in error && typeof error.statusCode === 'number') {
+    applicationError.statusCode = error.statusCode;
+  }
+
+  if ('code' in error && typeof error.code === 'string') {
+    applicationError.code = error.code;
+  }
+
+  if ('message' in error && typeof error.message === 'string') {
+    applicationError.message = error.message;
+  }
+
+  if ('validation' in error && Array.isArray(error.validation)) {
+    applicationError.validation = error.validation as FastifyValidationIssue[];
+  }
+
+  if ('error' in error && isObject(error.error)) {
+    const nestedError: {
+      code?: string;
+      message?: string;
+    } = {};
+
+    if ('code' in error.error && typeof error.error.code === 'string') {
+      nestedError.code = error.error.code;
+    }
+
+    if ('message' in error.error && typeof error.error.message === 'string') {
+      nestedError.message = error.error.message;
+    }
+
+    applicationError.error = nestedError;
+  }
+
+  return applicationError;
+}
+
+function hasValidationIssues(error: ErrorWithStatusCode): error is ErrorWithStatusCode & {
+  validation: FastifyValidationIssue[];
+} {
+  return Array.isArray(error.validation) && error.validation.length > 0;
+}
+
+function mapValidationDetails(validation: FastifyValidationIssue[]): ApiErrorDetail[] {
+  return validation.map((issue): ApiErrorDetail => {
+    const field = issue.instancePath?.replace(/^\//, '').replaceAll('/', '.');
+
+    const code = (issue.keyword ?? 'INVALID_VALUE').toUpperCase();
+
+    const message = issue.message ?? 'Request value is invalid';
+
+    if (field === undefined || field.length === 0) {
+      return {
+        code,
+        message,
+      };
+    }
+
+    return {
+      code,
+      field,
+      message,
+    };
+  });
+}
+
+function isRateLimitError(error: ErrorWithStatusCode): boolean {
+  return (
+    error.statusCode === 429 ||
+    error.code === RATE_LIMIT_ERROR_CODE ||
+    error.code === 'FST_ERR_RATE_LIMIT' ||
+    error.error?.code === RATE_LIMIT_ERROR_CODE
+  );
+}
+
+function getClientErrorCode(error: ErrorWithStatusCode): string {
+  return error.code ?? error.error?.code ?? 'REQUEST_ERROR';
+}
+
+function getClientErrorMessage(error: ErrorWithStatusCode): string {
+  return error.message ?? error.error?.message ?? 'The request could not be completed';
+}
+
+function isPayloadTooLargeError(error: ErrorWithStatusCode): boolean {
+  return error.statusCode === 413 || error.code === PAYLOAD_TOO_LARGE_ERROR_CODE;
+}
+
+const errorHandlerImplementation: FastifyPluginCallback = (fastify, _options, done): void => {
+  fastify.setNotFoundHandler(async (request, reply): Promise<void> => {
+    const message = `Route ${request.method} ${request.url} was not found`;
+
+    await reply.status(404).send(createErrorResponse('ROUTE_NOT_FOUND', message));
+  });
+
+  fastify.setErrorHandler(async (error: FastifyError, request, reply): Promise<void> => {
+    const applicationError = toApplicationError(error);
+
+    if (hasValidationIssues(applicationError)) {
+      await reply
+        .status(400)
+        .send(
+          createErrorResponse(
+            'INVALID_REQUEST',
+            'Request validation failed',
+            mapValidationDetails(applicationError.validation),
+          ),
+        );
+
+      return;
+    }
+
+    if (isPayloadTooLargeError(applicationError)) {
+      await reply
+        .status(413)
+        .send(createErrorResponse('PAYLOAD_TOO_LARGE', 'Request body exceeds the allowed size'));
+
+      return;
+    }
+
+    if (isRateLimitError(applicationError)) {
+      await reply.status(429).send(createErrorResponse(RATE_LIMIT_ERROR_CODE, RATE_LIMIT_MESSAGE));
+
+      return;
+    }
+
+    const statusCode = applicationError.statusCode;
+
+    if (statusCode !== undefined && statusCode >= 400 && statusCode < 500) {
+      await reply
+        .status(statusCode)
+        .send(
+          createErrorResponse(
+            getClientErrorCode(applicationError),
+            getClientErrorMessage(applicationError),
+          ),
+        );
+
+      return;
+    }
+
+    request.log.error(
+      {
+        err: error,
+      },
+      'Unhandled application error',
+    );
+
+    await reply
+      .status(500)
+      .send(createErrorResponse('INTERNAL_SERVER_ERROR', 'An unexpected error occurred'));
+  });
+
+  done();
+};
+
+export const errorHandler = fastifyPlugin(errorHandlerImplementation, {
+  name: 'error-handler',
+});
+
+=== AUDIT CURSOR CODEC ===
+src/application/ports/repositories/audit-log-query.repository.ts
+src/infrastructure/database/repositories/prisma-audit-log-query.repository.ts
+src/interfaces/http/modules/auditing/audit-log-cursor.ts
+tests/unit/interfaces/http/audit-log-cursor.test.ts
