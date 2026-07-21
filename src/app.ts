@@ -6,11 +6,12 @@ import {
 } from './infrastructure/container/infrastructure-container.js';
 import { infrastructurePlugin } from './infrastructure/container/infrastructure.plugin.js';
 import { authenticationPlugin } from './interfaces/http/modules/authentication/authentication.plugin.js';
+import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
 import { auditingPlugin } from './interfaces/http/modules/auditing/auditing.plugin.js';
+import { authorizationPlugin } from './interfaces/http/modules/authorization/authorization.plugin.js';
 import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
-import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
 
 export interface BuildApplicationOptions {
   logger?: FastifyServerOptions['logger'];
@@ -91,6 +92,8 @@ export async function buildApplication(
     await application.register(authenticationPlugin);
 
     await application.register(auditingPlugin);
+
+    await application.register(authorizationPlugin);
   }
 
   await application.register(apiV1Routes, {
