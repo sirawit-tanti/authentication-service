@@ -6,6 +6,7 @@ import {
 } from './infrastructure/container/infrastructure-container.js';
 import { infrastructurePlugin } from './infrastructure/container/infrastructure.plugin.js';
 import { authenticationPlugin } from './interfaces/http/modules/authentication/authentication.plugin.js';
+import { auditingPlugin } from './interfaces/http/modules/auditing/auditing.plugin.js';
 import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
@@ -88,6 +89,8 @@ export async function buildApplication(
     });
 
     await application.register(authenticationPlugin);
+
+    await application.register(auditingPlugin);
   }
 
   await application.register(apiV1Routes, {

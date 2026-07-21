@@ -23,6 +23,8 @@ export const auditingRoutes: FastifyPluginCallback<AuditingRoutesOptions> = (
   options,
   done,
 ): void => {
+  fastify.decorateRequest('authenticatedPrincipal', null);
+
   fastify.get<ListAuditLogsRequest>(
     '/audit-logs',
     {
