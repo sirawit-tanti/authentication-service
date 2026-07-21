@@ -12,6 +12,18 @@ import {
   listPermissionsRouteSchema,
   listRolesRouteSchema,
 } from './authorization-catalog.schema.js';
+import {
+  createGetUserRolesController,
+  createReplaceUserRolesController,
+  type GetUserRolesExecutor,
+  type ReplaceUserRolesExecutor,
+} from './user-role-assignment.controller.js';
+import {
+  getUserRolesRouteSchema,
+  replaceUserRolesRouteSchema,
+  type UserRoleParams,
+  type ReplaceUserRolesBody,
+} from './user-role-assignment.schema.js';
 
 export interface AuthorizationCatalogRoutesOptions {
   authenticationGuard: AuthenticationGuard;
@@ -21,6 +33,22 @@ export interface AuthorizationCatalogRoutesOptions {
   listRolesUseCase: ListRolesExecutor;
 
   listPermissionsUseCase: ListPermissionsExecutor;
+
+  rolesAssignPermissionGuard: PermissionGuard;
+
+  getUserRolesUseCase: GetUserRolesExecutor;
+
+  replaceUserRolesUseCase: ReplaceUserRolesExecutor;
+}
+
+interface UserRoleRouteRequest {
+  Params: UserRoleParams;
+}
+
+interface ReplaceUserRoleRouteRequest {
+  Params: UserRoleParams;
+
+  Body: ReplaceUserRolesBody;
 }
 
 export const authorizationCatalogRoutes: FastifyPluginCallback<
@@ -32,6 +60,10 @@ export const authorizationCatalogRoutes: FastifyPluginCallback<
     listRolesUseCase: options.listRolesUseCase,
 
     listPermissionsUseCase: options.listPermissionsUseCase,
+
+    getUserRolesUseCase: options.getUserRolesUseCase,
+
+    replaceUserRolesUseCase: options.replaceUserRolesUseCase,
   };
 
   fastify.get(
@@ -52,6 +84,26 @@ export const authorizationCatalogRoutes: FastifyPluginCallback<
       preHandler: [options.authenticationGuard, options.rolesReadPermissionGuard],
     },
     createListPermissionsController(controllerDependencies),
+  );
+
+  fastify.get<UserRoleRouteRequest>(
+    '/users/:userId/roles',
+    {
+      schema: getUserRolesRouteSchema,
+
+      preHandler: [options.authenticationGuard, options.rolesReadPermissionGuard],
+    },
+    createGetUserRolesController(controllerDependencies),
+  );
+
+  fastify.put<ReplaceUserRoleRouteRequest>(
+    '/users/:userId/roles',
+    {
+      schema: replaceUserRolesRouteSchema,
+
+      preHandler: [options.authenticationGuard, options.rolesAssignPermissionGuard],
+    },
+    createReplaceUserRolesController(controllerDependencies),
   );
 
   done();

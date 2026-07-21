@@ -11,8 +11,13 @@ import { env } from '@/shared/config/env.js';
 import { createAuthenticationGuard } from '../../authentication/authentication-guard.js';
 import { createPermissionGuard } from '../../authorization/permission-guard.js';
 import { authorizationCatalogRoutes } from './authorization-catalog.routes.js';
+import { GetUserRolesUseCase } from '@/application/use-cases/authorization/get-user-roles.use-case.js';
+import { ReplaceUserRolesUseCase } from '@/application/use-cases/authorization/replace-user-roles.use-case.js';
+import { PrismaUserRoleAssignmentRepository } from '@/infrastructure/database/repositories/prisma-user-role-assignment.repository.js';
 
 const ROLES_READ_PERMISSION = 'roles.read';
+
+const ROLES_ASSIGN_PERMISSION = 'roles.assign';
 
 const authorizationPluginImplementation: FastifyPluginAsync = async (fastify): Promise<void> => {
   const accessTokenService = new JwtAccessTokenService({
@@ -43,11 +48,35 @@ const authorizationPluginImplementation: FastifyPluginAsync = async (fastify): P
     permissionCode: ROLES_READ_PERMISSION,
   });
 
+  const rolesAssignPermissionGuard = createPermissionGuard({
+    permissionChecker,
+
+    clock: fastify.infrastructure.clock,
+
+    permissionCode: ROLES_ASSIGN_PERMISSION,
+  });
+
   const repository = new PrismaAuthorizationCatalogQueryRepository(fastify.infrastructure.prisma);
 
   const listRolesUseCase = new ListRolesUseCase(repository);
 
   const listPermissionsUseCase = new ListPermissionsUseCase(repository);
+
+  const userRoleAssignmentRepository = new PrismaUserRoleAssignmentRepository(
+    fastify.infrastructure.prisma,
+  );
+
+  const getUserRolesUseCase = new GetUserRolesUseCase({
+    repository: userRoleAssignmentRepository,
+
+    clock: fastify.infrastructure.clock,
+  });
+
+  const replaceUserRolesUseCase = new ReplaceUserRolesUseCase({
+    repository: userRoleAssignmentRepository,
+
+    clock: fastify.infrastructure.clock,
+  });
 
   await fastify.register(authorizationCatalogRoutes, {
     prefix: '/api/v1/authorization',
@@ -59,6 +88,12 @@ const authorizationPluginImplementation: FastifyPluginAsync = async (fastify): P
     listRolesUseCase,
 
     listPermissionsUseCase,
+
+    rolesAssignPermissionGuard,
+
+    getUserRolesUseCase,
+
+    replaceUserRolesUseCase,
   });
 };
 
