@@ -16,14 +16,14 @@ const environmentSchema = z.object({
   DATABASE_URL: z
     .string()
     .trim()
-    .refine((url) => url.startsWith('postgresql://') || url.startsWith('postgres://'), {
+    .refine((url): boolean => url.startsWith('postgresql://') || url.startsWith('postgres://'), {
       message: 'DATABASE_URL must use the postgresql:// or postgres:// protocol',
     }),
 
   REDIS_URL: z
     .string()
     .trim()
-    .refine((url) => url.startsWith('redis://') || url.startsWith('rediss://'), {
+    .refine((url): boolean => url.startsWith('redis://') || url.startsWith('rediss://'), {
       message: 'REDIS_URL must use the redis:// or rediss:// protocol',
     }),
 
@@ -169,6 +169,8 @@ const environmentSchema = z.object({
     .max(10 * 1_024 * 1_024)
     .default(64 * 1_024),
 
+  HTTP_TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
+
   CORS_ALLOWED_ORIGINS: z.string().trim().default('http://localhost:3000'),
 
   CORS_ALLOW_CREDENTIALS: z
@@ -186,6 +188,7 @@ if (!parsedEnvironment.success) {
 
   console.error('Invalid environment configuration:', {
     formErrors: formattedErrors.formErrors,
+
     fieldErrors: formattedErrors.fieldErrors,
   });
 

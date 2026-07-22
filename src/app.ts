@@ -5,19 +5,23 @@ import {
   type InfrastructureContainer,
 } from './infrastructure/container/infrastructure-container.js';
 import { infrastructurePlugin } from './infrastructure/container/infrastructure.plugin.js';
-import { authenticationPlugin } from './interfaces/http/modules/authentication/authentication.plugin.js';
-import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
 import { auditingPlugin } from './interfaces/http/modules/auditing/auditing.plugin.js';
+import { authenticationPlugin } from './interfaces/http/modules/authentication/authentication.plugin.js';
 import { authorizationPlugin } from './interfaces/http/modules/authorization/authorization.plugin.js';
 import { usersPlugin } from './interfaces/http/modules/users/users.plugin.js';
 import { apiV1Routes } from './interfaces/http/routes/index.js';
+import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
 
 export interface BuildApplicationOptions {
   logger?: FastifyServerOptions['logger'];
+
   registerInfrastructure?: boolean;
+
   infrastructure?: InfrastructureContainer;
+
+  trustProxy?: FastifyServerOptions['trustProxy'];
 }
 
 export async function buildApplication(
@@ -57,13 +61,15 @@ export async function buildApplication(
           'clientSecretHash',
           'apiKey',
           'keyHash',
-          'refreshToken',
         ],
+
         censor: '[REDACTED]',
       },
     },
 
     bodyLimit: env.HTTP_BODY_LIMIT_BYTES,
+
+    trustProxy: options.trustProxy ?? env.HTTP_TRUST_PROXY_HOPS,
 
     ajv: {
       customOptions: {
@@ -75,6 +81,7 @@ export async function buildApplication(
 
     logController: new LogController({
       requestIdLogLabel: 'requestId',
+
       disableRequestLogging: false,
     }),
   });
