@@ -2,6 +2,8 @@ import 'dotenv/config';
 
 import { z } from 'zod';
 
+import { collectProductionSecurityIssues } from './production-security.js';
+
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 
@@ -193,6 +195,16 @@ if (!parsedEnvironment.success) {
   });
 
   throw new Error('Application environment configuration is invalid');
+}
+
+const securityIssues = collectProductionSecurityIssues(parsedEnvironment.data);
+
+if (securityIssues.length > 0) {
+  console.error('Unsafe environment security configuration:', {
+    issues: securityIssues,
+  });
+
+  throw new Error('Application environment security configuration is invalid');
 }
 
 export const env = Object.freeze(parsedEnvironment.data);

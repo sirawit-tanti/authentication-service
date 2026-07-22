@@ -283,6 +283,47 @@ Audit entries may include:
 
 Audit entries must not include raw passwords, raw tokens, token hashes, client secrets, or API keys.
 
+## Production Configuration Guard
+
+The application validates security-sensitive configuration during startup.
+
+Production startup is rejected when:
+
+- The JWT signing secret contains a known development placeholder
+- The email verification URL does not use HTTPS
+- The email verification URL uses `localhost`, `127.0.0.1`, or `::1`
+- A CORS origin does not use HTTPS
+- A CORS origin contains a path, query, or fragment
+- A CORS origin uses a local hostname
+- A wildcard CORS origin is configured
+- Credentialed CORS is combined with a wildcard origin
+
+A production browser origin must contain only the origin:
+
+```text
+https://app.example.com
+```
+
+The following values are invalid:
+
+```text
+http://app.example.com
+https://app.example.com/dashboard
+https://app.example.com?source=auth
+https://app.example.com#login
+*
+```
+
+Generate a production JWT secret using a cryptographically secure random generator.
+
+Example with Node.js:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
+```
+
+Do not commit the generated secret to source control.
+
 ## Production Checklist
 
 Before deployment:
