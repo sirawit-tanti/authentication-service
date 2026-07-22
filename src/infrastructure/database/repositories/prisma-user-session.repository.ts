@@ -8,6 +8,7 @@ import type {
   UserSessionRepository,
 } from '@/application/ports/repositories/user-session.repository.js';
 import type { ApplicationPrismaClient } from '../prisma-client.js';
+import { revokeSessions } from './session-revocation.js';
 
 const SESSION_RESOURCE_TYPE = 'SESSION';
 
@@ -102,51 +103,21 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
           return 'ALREADY_REVOKED';
         }
 
-        const sessionUpdate = await transaction.session.updateMany({
-          where: {
-            id: session.id,
+        const revocationResult = await revokeSessions(transaction, {
+          sessionIds: [session.id],
 
-            userId: input.userId,
+          userId: input.userId,
 
-            applicationId: input.applicationId,
+          applicationId: input.applicationId,
 
-            status: {
-              not: 'REVOKED',
-            },
+          revokedAt: input.revokedAt,
 
-            revokedAt: null,
-          },
-
-          data: {
-            status: 'REVOKED',
-
-            revokedAt: input.revokedAt,
-
-            revokeReason: input.reason,
-
-            lastActivityAt: input.revokedAt,
-
-            updatedAt: input.revokedAt,
-          },
+          reason: input.reason,
         });
 
-        if (sessionUpdate.count === 0) {
+        if (revocationResult.revokedSessionCount === 0) {
           return 'ALREADY_REVOKED';
         }
-
-        await transaction.refreshToken.updateMany({
-          where: {
-            sessionId: session.id,
-
-            revokedAt: null,
-          },
-
-          data: {
-            revokedAt: input.revokedAt,
-
-            revokeReason: input.reason,
-          },
-        });
 
         await transaction.auditLog.create({
           data: {
@@ -232,55 +203,23 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
           };
         }
 
-        const sessionUpdate = await transaction.session.updateMany({
-          where: {
-            id: {
-              in: sessionIds,
-            },
+        const revocationResult = await revokeSessions(transaction, {
+          sessionIds,
 
-            userId: input.userId,
+          userId: input.userId,
 
-            applicationId: input.applicationId,
+          applicationId: input.applicationId,
 
-            status: 'ACTIVE',
+          revokedAt: input.revokedAt,
 
-            revokedAt: null,
-          },
-
-          data: {
-            status: 'REVOKED',
-
-            revokedAt: input.revokedAt,
-
-            revokeReason: input.reason,
-
-            lastActivityAt: input.revokedAt,
-
-            updatedAt: input.revokedAt,
-          },
+          reason: input.reason,
         });
 
-        if (sessionUpdate.count === 0) {
+        if (revocationResult.revokedSessionCount === 0) {
           return {
             revokedCount: 0,
           };
         }
-
-        await transaction.refreshToken.updateMany({
-          where: {
-            sessionId: {
-              in: sessionIds,
-            },
-
-            revokedAt: null,
-          },
-
-          data: {
-            revokedAt: input.revokedAt,
-
-            revokeReason: input.reason,
-          },
-        });
 
         await transaction.auditLog.create({
           data: {
@@ -301,7 +240,7 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
             metadata: {
               currentSessionId: input.currentSessionId,
 
-              revokedCount: sessionUpdate.count,
+              revokedCount: revocationResult.revokedSessionCount,
 
               reason: input.reason,
             },
@@ -327,7 +266,7 @@ export class PrismaUserSessionRepository implements UserSessionRepository {
         });
 
         return {
-          revokedCount: sessionUpdate.count,
+          revokedCount: revocationResult.revokedSessionCount,
         };
       },
       {

@@ -7,6 +7,7 @@ import type {
   PersistPasswordChangeResult,
 } from '@/application/ports/repositories/change-password.repository.js';
 import type { ApplicationPrismaClient } from '../prisma-client.js';
+import { revokeSessions } from './session-revocation.js';
 
 const USER_RESOURCE_TYPE = 'USER';
 
@@ -101,48 +102,17 @@ export class PrismaChangePasswordRepository implements ChangePasswordRepository 
 
         const otherSessionIds = otherSessions.map((session): string => session.id);
 
-        if (otherSessionIds.length > 0) {
-          await transaction.session.updateMany({
-            where: {
-              id: {
-                in: otherSessionIds,
-              },
+        const revocationResult = await revokeSessions(transaction, {
+          sessionIds: otherSessionIds,
 
-              userId: input.userId,
-              applicationId: input.applicationId,
-              status: 'ACTIVE',
-              revokedAt: null,
-            },
+          userId: input.userId,
 
-            data: {
-              status: 'REVOKED',
+          applicationId: input.applicationId,
 
-              revokedAt: input.passwordChangedAt,
+          revokedAt: input.passwordChangedAt,
 
-              revokeReason: input.revokeReason,
-
-              lastActivityAt: input.passwordChangedAt,
-
-              updatedAt: input.passwordChangedAt,
-            },
-          });
-
-          await transaction.refreshToken.updateMany({
-            where: {
-              sessionId: {
-                in: otherSessionIds,
-              },
-
-              revokedAt: null,
-            },
-
-            data: {
-              revokedAt: input.passwordChangedAt,
-
-              revokeReason: input.revokeReason,
-            },
-          });
-        }
+          reason: input.revokeReason,
+        });
 
         await transaction.session.updateMany({
           where: {
@@ -179,7 +149,7 @@ export class PrismaChangePasswordRepository implements ChangePasswordRepository 
             metadata: {
               preservedSessionId: input.currentSessionId,
 
-              revokedSessionCount: otherSessionIds.length,
+              revokedSessionCount: revocationResult.revokedSessionCount,
             },
 
             ...(input.requestId === undefined

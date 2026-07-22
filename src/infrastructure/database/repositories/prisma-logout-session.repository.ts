@@ -5,6 +5,7 @@ import type {
   RevokeSessionByRefreshTokenResult,
 } from '@/application/ports/repositories/logout-session.repository.js';
 import type { ApplicationPrismaClient } from '../prisma-client.js';
+import { revokeSessions } from './session-revocation.js';
 
 const SESSION_RESOURCE_TYPE = 'SESSION';
 
@@ -47,47 +48,17 @@ export class PrismaLogoutSessionRepository implements LogoutSessionRepository {
           return 'ALREADY_REVOKED';
         }
 
-        const sessionUpdate = await transaction.session.updateMany({
-          where: {
-            id: refreshToken.sessionId,
+        const revocationResult = await revokeSessions(transaction, {
+          sessionIds: [refreshToken.sessionId],
 
-            status: {
-              not: 'REVOKED',
-            },
+          revokedAt: input.revokedAt,
 
-            revokedAt: null,
-          },
-
-          data: {
-            status: 'REVOKED',
-
-            revokedAt: input.revokedAt,
-
-            revokeReason: input.reason,
-
-            lastActivityAt: input.revokedAt,
-
-            updatedAt: input.revokedAt,
-          },
+          reason: input.reason,
         });
 
-        if (sessionUpdate.count === 0) {
+        if (revocationResult.revokedSessionCount === 0) {
           return 'ALREADY_REVOKED';
         }
-
-        await transaction.refreshToken.updateMany({
-          where: {
-            sessionId: refreshToken.sessionId,
-
-            revokedAt: null,
-          },
-
-          data: {
-            revokedAt: input.revokedAt,
-
-            revokeReason: input.reason,
-          },
-        });
 
         await transaction.auditLog.create({
           data: {

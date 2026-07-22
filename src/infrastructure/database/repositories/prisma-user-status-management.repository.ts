@@ -6,6 +6,7 @@ import type {
   UserStatusManagementRepository,
 } from '@/application/ports/repositories/user-status-management.repository.js';
 import type { ApplicationPrismaClient } from '../prisma-client.js';
+import { revokeSessions } from './session-revocation.js';
 
 const USER_RESOURCE_TYPE = 'USER';
 
@@ -139,51 +140,17 @@ export class PrismaUserStatusManagementRepository implements UserStatusManagemen
 
           const sessionIds = sessions.map((session): string => session.id);
 
-          if (sessionIds.length > 0) {
-            const sessionUpdate = await transaction.session.updateMany({
-              where: {
-                id: {
-                  in: sessionIds,
-                },
+          const revocationResult = await revokeSessions(transaction, {
+            sessionIds,
 
-                userId: user.id,
+            userId: user.id,
 
-                status: 'ACTIVE',
+            revokedAt: input.changedAt,
 
-                revokedAt: null,
-              },
+            reason: input.revokeReason,
+          });
 
-              data: {
-                status: 'REVOKED',
-
-                revokedAt: input.changedAt,
-
-                revokeReason: input.revokeReason,
-
-                lastActivityAt: input.changedAt,
-
-                updatedAt: input.changedAt,
-              },
-            });
-
-            revokedSessionCount = sessionUpdate.count;
-
-            await transaction.refreshToken.updateMany({
-              where: {
-                sessionId: {
-                  in: sessionIds,
-                },
-
-                revokedAt: null,
-              },
-
-              data: {
-                revokedAt: input.changedAt,
-
-                revokeReason: input.revokeReason,
-              },
-            });
-          }
+          revokedSessionCount = revocationResult.revokedSessionCount;
         }
 
         const updatedUser = await transaction.user.findUniqueOrThrow({

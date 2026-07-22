@@ -7,6 +7,7 @@ import type {
   ResetPasswordRepository,
 } from '@/application/ports/repositories/reset-password.repository.js';
 import type { ApplicationPrismaClient } from '../prisma-client.js';
+import { revokeSessions } from './session-revocation.js';
 
 const USER_RESOURCE_TYPE = 'USER';
 
@@ -160,47 +161,15 @@ export class PrismaResetPasswordRepository implements ResetPasswordRepository {
 
           const activeSessionIds = activeSessions.map((session): string => session.id);
 
-          if (activeSessionIds.length > 0) {
-            await transaction.session.updateMany({
-              where: {
-                id: {
-                  in: activeSessionIds,
-                },
+          const revocationResult = await revokeSessions(transaction, {
+            sessionIds: activeSessionIds,
 
-                userId: input.userId,
-                status: 'ACTIVE',
-                revokedAt: null,
-              },
+            userId: input.userId,
 
-              data: {
-                status: 'REVOKED',
+            revokedAt: input.passwordChangedAt,
 
-                revokedAt: input.passwordChangedAt,
-
-                revokeReason: input.revokeReason,
-
-                lastActivityAt: input.passwordChangedAt,
-
-                updatedAt: input.passwordChangedAt,
-              },
-            });
-
-            await transaction.refreshToken.updateMany({
-              where: {
-                sessionId: {
-                  in: activeSessionIds,
-                },
-
-                revokedAt: null,
-              },
-
-              data: {
-                revokedAt: input.passwordChangedAt,
-
-                revokeReason: input.revokeReason,
-              },
-            });
-          }
+            reason: input.revokeReason,
+          });
 
           await transaction.auditLog.create({
             data: {
@@ -219,7 +188,7 @@ export class PrismaResetPasswordRepository implements ResetPasswordRepository {
               metadata: {
                 passwordResetTokenId: input.tokenId,
 
-                revokedSessionCount: activeSessionIds.length,
+                revokedSessionCount: revocationResult.revokedSessionCount,
               },
 
               ...(input.requestId === undefined
