@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { UnauthorizedError } from '../../../application/errors/unauthorized.error.js';
 import type { AccessTokenService } from '../../../application/ports/authentication/access-token-service.js';
 import type { AccessSessionRepository } from '../../../application/ports/repositories/access-session.repository.js';
+import type { AccessTokenBlacklistRepository } from '../../../application/ports/repositories/access-token-blacklist.repository.js';
 import type { Clock } from '../../../application/ports/system/clock.js';
 import { InvalidAccessTokenError } from '../../../infrastructure/authentication/jwt-access-token.service.js';
 import { createErrorResponse } from '../../../shared/http/api-response.js';
@@ -10,6 +11,7 @@ import { createErrorResponse } from '../../../shared/http/api-response.js';
 export interface AuthenticationGuardDependencies {
   accessTokenService: AccessTokenService;
   accessSessionRepository: AccessSessionRepository;
+  accessTokenBlacklistRepository: AccessTokenBlacklistRepository;
   clock: Clock;
 }
 
@@ -79,6 +81,17 @@ export function createAuthenticationGuard(
       }
 
       throw error;
+    }
+
+    const blacklisted = await dependencies.accessTokenBlacklistRepository.isBlacklisted({
+      jti: claims.jti,
+      checkedAt,
+    });
+
+    if (blacklisted) {
+      await sendUnauthorized(reply);
+
+      return;
     }
 
     const activeSession = await dependencies.accessSessionRepository.findActive({

@@ -62,6 +62,8 @@ describe('POST /api/v1/auth/logout', () => {
         'x-request-id': REQUEST_ID,
 
         'user-agent': USER_AGENT,
+
+        authorization: 'Bearer current-access-token',
       },
 
       payload: {
@@ -74,6 +76,7 @@ describe('POST /api/v1/auth/logout', () => {
 
     expect(logoutSessionUseCase.command).toEqual({
       refreshToken: 'current-refresh-token',
+      accessToken: 'current-access-token',
 
       requestId: REQUEST_ID,
 
@@ -231,5 +234,30 @@ describe('POST /api/v1/auth/logout', () => {
     expect(response.body).toBe('');
 
     expect(response.body).not.toContain('secret-refresh-token');
+  });
+
+  it('ignores a malformed optional authorization header', async () => {
+    const response = await application.inject({
+      method: 'POST',
+      url: '/api/v1/auth/logout',
+
+      headers: {
+        authorization: 'invalid-header',
+      },
+
+      payload: {
+        refreshToken: 'current-refresh-token',
+      },
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(response.body).toBe('');
+
+    expect(logoutSessionUseCase.command).toEqual({
+      refreshToken: 'current-refresh-token',
+      requestId: 'req-1',
+      ipAddress: '127.0.0.1',
+      userAgent: 'lightMyRequest',
+    });
   });
 });

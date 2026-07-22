@@ -43,6 +43,7 @@ import { resetPasswordRoutes } from './reset-password.routes.js';
 import { registerAuthenticationRateLimit } from '../../rate-limit/authentication-rate-limit.plugin.js';
 import { GetUserAuthorizationUseCase } from '@/application/use-cases/authorization/get-user-authorization.use-case.js';
 import { PrismaUserAuthorizationQueryRepository } from '@/infrastructure/database/repositories/prisma-user-authorization-query.repository.js';
+import { PrismaAccessTokenBlacklistRepository } from '@/infrastructure/database/repositories/prisma-access-token-blacklist.repository.js';
 
 const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): Promise<void> => {
   await registerAuthenticationRateLimit(fastify);
@@ -112,6 +113,10 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
     timeToLiveMinutes: env.JWT_ACCESS_TOKEN_TTL_MINUTES,
   });
 
+  const accessTokenBlacklistRepository = new PrismaAccessTokenBlacklistRepository(
+    fastify.infrastructure.prisma,
+  );
+
   const passwordResetTokenService = new CryptoPasswordResetTokenService();
 
   const forgotPasswordUseCase = new ForgotPasswordUseCase({
@@ -132,6 +137,7 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
   const authenticationGuard = createAuthenticationGuard({
     accessTokenService,
     accessSessionRepository: new PrismaAccessSessionRepository(fastify.infrastructure.prisma),
+    accessTokenBlacklistRepository,
     clock: fastify.infrastructure.clock,
   });
 
@@ -170,6 +176,7 @@ const authenticationPluginImplementation: FastifyPluginAsync = async (fastify): 
     repository: new PrismaLogoutSessionRepository(fastify.infrastructure.prisma),
 
     refreshTokenService,
+    accessTokenService,
     clock: fastify.infrastructure.clock,
   });
 

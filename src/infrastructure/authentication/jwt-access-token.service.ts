@@ -1,10 +1,12 @@
+import { randomUUID } from 'node:crypto';
+
 import type {
   AccessTokenService,
   CreateAccessTokenInput,
   VerifyAccessTokenInput,
   VerifyAccessTokenResult,
 } from '@/application/ports/authentication/access-token-service.js';
-import { jwtVerify, SignJWT, errors as joseErrors } from 'jose';
+import { errors as joseErrors, jwtVerify, SignJWT } from 'jose';
 
 export interface JwtAccessTokenServiceOptions {
   secret: string;
@@ -54,7 +56,6 @@ export class JwtAccessTokenService implements AccessTokenService {
     }
 
     this.secret = new TextEncoder().encode(options.secret);
-
     this.issuer = issuer;
     this.audience = audience;
     this.timeToLiveSeconds = options.timeToLiveMinutes * 60;
@@ -74,6 +75,7 @@ export class JwtAccessTokenService implements AccessTokenService {
         alg: 'HS256',
         typ: 'JWT',
       })
+      .setJti(randomUUID())
       .setSubject(input.claims.userId)
       .setIssuer(this.issuer)
       .setAudience(this.audience)
@@ -91,19 +93,17 @@ export class JwtAccessTokenService implements AccessTokenService {
         currentDate: input.verifiedAt ?? new Date(),
       });
 
+      const jti = verificationResult.payload.jti;
       const subject = verificationResult.payload.sub;
-
       const sessionId = verificationResult.payload.sid;
-
       const applicationId = verificationResult.payload.app_id;
-
       const email = verificationResult.payload.email;
-
       const issuedAt = verificationResult.payload.iat;
-
       const expiresAt = verificationResult.payload.exp;
 
       if (
+        typeof jti !== 'string' ||
+        jti.length === 0 ||
         subject === undefined ||
         typeof sessionId !== 'string' ||
         typeof applicationId !== 'string' ||
@@ -115,6 +115,7 @@ export class JwtAccessTokenService implements AccessTokenService {
       }
 
       return {
+        jti,
         userId: subject,
         sessionId,
         applicationId,

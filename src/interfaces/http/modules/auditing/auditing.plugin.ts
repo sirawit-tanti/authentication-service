@@ -6,6 +6,7 @@ import { JwtAccessTokenService } from '@/infrastructure/authentication/jwt-acces
 import { PrismaPermissionChecker } from '@/infrastructure/authorization/prisma-permission-checker.js';
 import { PrismaAccessSessionRepository } from '@/infrastructure/database/repositories/prisma-access-session.repository.js';
 import { PrismaAuditLogQueryRepository } from '@/infrastructure/database/repositories/prisma-audit-log-query.repository.js';
+import { PrismaAccessTokenBlacklistRepository } from '@/infrastructure/database/repositories/prisma-access-token-blacklist.repository.js';
 import { env } from '@/shared/config/env.js';
 import { createAuthenticationGuard } from '../../authentication/authentication-guard.js';
 import { createPermissionGuard } from '../../authorization/permission-guard.js';
@@ -23,7 +24,13 @@ const auditingPluginImplementation: FastifyPluginAsync = async (fastify): Promis
 
   const authenticationGuard = createAuthenticationGuard({
     accessTokenService,
+
     accessSessionRepository: new PrismaAccessSessionRepository(fastify.infrastructure.prisma),
+
+    accessTokenBlacklistRepository: new PrismaAccessTokenBlacklistRepository(
+      fastify.infrastructure.prisma,
+    ),
+
     clock: fastify.infrastructure.clock,
   });
 

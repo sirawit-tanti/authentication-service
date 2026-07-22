@@ -148,6 +148,7 @@ class FakeAccessTokenService implements AccessTokenService {
     void input;
 
     return Promise.resolve({
+      jti: '91399467-9823-47d1-b483-786630fcf0fa',
       userId: USER_ID,
       sessionId: SESSION_ID,
       applicationId: APPLICATION_ID,

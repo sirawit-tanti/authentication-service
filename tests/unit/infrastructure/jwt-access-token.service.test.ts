@@ -54,7 +54,7 @@ describe('JwtAccessTokenService', () => {
       verifiedAt: VERIFIED_AT,
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       userId: USER_ID,
       sessionId: SESSION_ID,
       applicationId: APPLICATION_ID,
@@ -62,6 +62,10 @@ describe('JwtAccessTokenService', () => {
       issuedAt: ISSUED_AT,
       expiresAt: new Date('2026-07-16T00:15:00.000Z'),
     });
+
+    expect(result.jti).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+    );
   });
 
   it('rejects an expired access token', async () => {

@@ -17,6 +17,26 @@ interface LogoutRouteRequest {
   Body: LogoutRequestBody;
 }
 
+function extractOptionalBearerToken(authorizationHeader: string | undefined): string | undefined {
+  if (authorizationHeader === undefined) {
+    return undefined;
+  }
+
+  const parts = authorizationHeader.trim().split(/\s+/u);
+
+  if (parts.length !== 2) {
+    return undefined;
+  }
+
+  const [scheme, token] = parts;
+
+  if (scheme?.toLowerCase() !== 'bearer' || token === undefined || token.length === 0) {
+    return undefined;
+  }
+
+  return token;
+}
+
 export function createLogoutController(
   dependencies: LogoutControllerDependencies,
 ): (request: FastifyRequest<LogoutRouteRequest>, reply: FastifyReply) => Promise<void> {
@@ -53,8 +73,16 @@ export function createLogoutController(
       return;
     }
 
+    const accessToken = extractOptionalBearerToken(request.headers.authorization);
+
     await dependencies.logoutSessionUseCase.execute({
       refreshToken: validationResult.data.refreshToken,
+
+      ...(accessToken === undefined
+        ? {}
+        : {
+            accessToken,
+          }),
 
       ...createRequestAuditContext(request),
     });

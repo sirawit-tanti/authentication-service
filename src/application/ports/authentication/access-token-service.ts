@@ -16,6 +16,7 @@ export interface VerifyAccessTokenInput {
 }
 
 export interface VerifyAccessTokenResult {
+  jti: string;
   userId: string;
   sessionId: string;
   applicationId: string;

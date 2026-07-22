@@ -9,6 +9,7 @@ import { PrismaPermissionChecker } from '@/infrastructure/authorization/prisma-p
 import { PrismaAccessSessionRepository } from '@/infrastructure/database/repositories/prisma-access-session.repository.js';
 import { PrismaUserAdministrationQueryRepository } from '@/infrastructure/database/repositories/prisma-user-administration-query.repository.js';
 import { PrismaUserStatusManagementRepository } from '@/infrastructure/database/repositories/prisma-user-status-management.repository.js';
+import { PrismaAccessTokenBlacklistRepository } from '@/infrastructure/database/repositories/prisma-access-token-blacklist.repository.js';
 import { env } from '@/shared/config/env.js';
 import { createAuthenticationGuard } from '../../authentication/authentication-guard.js';
 import { createPermissionGuard } from '../../authorization/permission-guard.js';
@@ -33,6 +34,10 @@ const usersPluginImplementation: FastifyPluginAsync = async (fastify): Promise<v
     accessTokenService,
 
     accessSessionRepository: new PrismaAccessSessionRepository(fastify.infrastructure.prisma),
+
+    accessTokenBlacklistRepository: new PrismaAccessTokenBlacklistRepository(
+      fastify.infrastructure.prisma,
+    ),
 
     clock: fastify.infrastructure.clock,
   });

@@ -14,6 +14,7 @@ import { PrismaAccessSessionRepository } from '@/infrastructure/database/reposit
 import { PrismaAuthorizationCatalogQueryRepository } from '@/infrastructure/database/repositories/prisma-authorization-catalog-query.repository.js';
 import { PrismaRoleManagementRepository } from '@/infrastructure/database/repositories/prisma-role-management.repository.js';
 import { PrismaUserRoleAssignmentRepository } from '@/infrastructure/database/repositories/prisma-user-role-assignment.repository.js';
+import { PrismaAccessTokenBlacklistRepository } from '@/infrastructure/database/repositories/prisma-access-token-blacklist.repository.js';
 import { env } from '@/shared/config/env.js';
 import { createAuthenticationGuard } from '../../authentication/authentication-guard.js';
 import { createPermissionGuard } from '../../authorization/permission-guard.js';
@@ -41,6 +42,10 @@ const authorizationPluginImplementation: FastifyPluginAsync = async (fastify): P
     accessTokenService,
 
     accessSessionRepository: new PrismaAccessSessionRepository(fastify.infrastructure.prisma),
+
+    accessTokenBlacklistRepository: new PrismaAccessTokenBlacklistRepository(
+      fastify.infrastructure.prisma,
+    ),
 
     clock: fastify.infrastructure.clock,
   });

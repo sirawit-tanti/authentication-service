@@ -60,6 +60,33 @@ export class PrismaLogoutSessionRepository implements LogoutSessionRepository {
           return 'ALREADY_REVOKED';
         }
 
+        const accessToken = input.accessToken;
+
+        if (
+          accessToken?.sessionId === refreshToken.sessionId &&
+          accessToken.expiresAt > input.revokedAt
+        ) {
+          await transaction.tokenBlacklist.upsert({
+            where: {
+              jti: accessToken.jti,
+            },
+
+            create: {
+              jti: accessToken.jti,
+              tokenType: 'ACCESS_TOKEN',
+              reason: input.reason,
+              expiresAt: accessToken.expiresAt,
+              createdAt: input.revokedAt,
+            },
+
+            update: {
+              tokenType: 'ACCESS_TOKEN',
+              reason: input.reason,
+              expiresAt: accessToken.expiresAt,
+            },
+          });
+        }
+
         await transaction.auditLog.create({
           data: {
             actorUserId: refreshToken.session.userId,
