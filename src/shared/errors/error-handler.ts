@@ -9,22 +9,37 @@ const RATE_LIMIT_MESSAGE = 'Too many requests. Please try again later';
 
 const PAYLOAD_TOO_LARGE_ERROR_CODE = 'FST_ERR_CTP_BODY_TOO_LARGE';
 
+const INVALID_JSON_ERROR_CODES = new Set([
+  'FST_ERR_CTP_INVALID_JSON_BODY',
+  'FST_ERR_CTP_EMPTY_JSON_BODY',
+]);
+
+const UNSUPPORTED_MEDIA_TYPE_ERROR_CODE = 'FST_ERR_CTP_INVALID_MEDIA_TYPE';
+
 interface FastifyValidationIssue {
   instancePath?: string;
+
   schemaPath?: string;
+
   keyword?: string;
+
   message?: string;
+
   params?: Record<string, unknown>;
 }
 
 interface ErrorWithStatusCode {
   statusCode?: number;
+
   code?: string;
+
   message?: string;
+
   validation?: FastifyValidationIssue[];
 
   error?: {
     code?: string;
+
     message?: string;
   };
 }
@@ -59,6 +74,7 @@ function toApplicationError(error: unknown): ErrorWithStatusCode {
   if ('error' in error && isObject(error.error)) {
     const nestedError: {
       code?: string;
+
       message?: string;
     } = {};
 
@@ -114,16 +130,24 @@ function isRateLimitError(error: ErrorWithStatusCode): boolean {
   );
 }
 
+function isPayloadTooLargeError(error: ErrorWithStatusCode): boolean {
+  return error.statusCode === 413 || error.code === PAYLOAD_TOO_LARGE_ERROR_CODE;
+}
+
+function isInvalidJsonError(error: ErrorWithStatusCode): boolean {
+  return error.code !== undefined && INVALID_JSON_ERROR_CODES.has(error.code);
+}
+
+function isUnsupportedMediaTypeError(error: ErrorWithStatusCode): boolean {
+  return error.statusCode === 415 || error.code === UNSUPPORTED_MEDIA_TYPE_ERROR_CODE;
+}
+
 function getClientErrorCode(error: ErrorWithStatusCode): string {
   return error.code ?? error.error?.code ?? 'REQUEST_ERROR';
 }
 
 function getClientErrorMessage(error: ErrorWithStatusCode): string {
   return error.message ?? error.error?.message ?? 'The request could not be completed';
-}
-
-function isPayloadTooLargeError(error: ErrorWithStatusCode): boolean {
-  return error.statusCode === 413 || error.code === PAYLOAD_TOO_LARGE_ERROR_CODE;
 }
 
 const errorHandlerImplementation: FastifyPluginCallback = (fastify, _options, done): void => {
@@ -136,6 +160,32 @@ const errorHandlerImplementation: FastifyPluginCallback = (fastify, _options, do
   fastify.setErrorHandler(async (error: FastifyError, request, reply): Promise<void> => {
     const applicationError = toApplicationError(error);
 
+    if (isPayloadTooLargeError(applicationError)) {
+      await reply
+        .status(413)
+        .send(createErrorResponse('PAYLOAD_TOO_LARGE', 'Request body exceeds the allowed size'));
+
+      return;
+    }
+
+    if (isInvalidJsonError(applicationError)) {
+      await reply
+        .status(400)
+        .send(createErrorResponse('INVALID_JSON', 'Request body contains invalid JSON'));
+
+      return;
+    }
+
+    if (isUnsupportedMediaTypeError(applicationError)) {
+      await reply
+        .status(415)
+        .send(
+          createErrorResponse('UNSUPPORTED_MEDIA_TYPE', 'Request content type is not supported'),
+        );
+
+      return;
+    }
+
     if (hasValidationIssues(applicationError)) {
       await reply
         .status(400)
@@ -146,14 +196,6 @@ const errorHandlerImplementation: FastifyPluginCallback = (fastify, _options, do
             mapValidationDetails(applicationError.validation),
           ),
         );
-
-      return;
-    }
-
-    if (isPayloadTooLargeError(applicationError)) {
-      await reply
-        .status(413)
-        .send(createErrorResponse('PAYLOAD_TOO_LARGE', 'Request body exceeds the allowed size'));
 
       return;
     }

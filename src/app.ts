@@ -13,6 +13,7 @@ import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
+import { createLoggerRedactionConfiguration } from './shared/logging/logger-redaction.js';
 
 export interface BuildApplicationOptions {
   logger?: FastifyServerOptions['logger'];
@@ -22,6 +23,8 @@ export interface BuildApplicationOptions {
   infrastructure?: InfrastructureContainer;
 
   trustProxy?: FastifyServerOptions['trustProxy'];
+
+  bodyLimit?: number;
 }
 
 export async function buildApplication(
@@ -31,43 +34,10 @@ export async function buildApplication(
     logger: options.logger ?? {
       level: env.LOG_LEVEL,
 
-      redact: {
-        paths: [
-          'req.headers.authorization',
-          'req.headers.cookie',
-          'request.headers.authorization',
-          'request.headers.cookie',
-          'req.body.password',
-          'req.body.refreshToken',
-          'request.body.password',
-          'request.body.refreshToken',
-          'req.body.currentPassword',
-          'request.body.currentPassword',
-          'req.body.newPassword',
-          'request.body.newPassword',
-          'req.body.token',
-          'request.body.token',
-          'password',
-          'currentPassword',
-          'newPassword',
-          'passwordHash',
-          'token',
-          'tokenHash',
-          'verificationToken',
-          'resetToken',
-          'accessToken',
-          'refreshToken',
-          'clientSecret',
-          'clientSecretHash',
-          'apiKey',
-          'keyHash',
-        ],
-
-        censor: '[REDACTED]',
-      },
+      redact: createLoggerRedactionConfiguration(),
     },
 
-    bodyLimit: env.HTTP_BODY_LIMIT_BYTES,
+    bodyLimit: options.bodyLimit ?? env.HTTP_BODY_LIMIT_BYTES,
 
     trustProxy: options.trustProxy ?? env.HTTP_TRUST_PROXY_HOPS,
 

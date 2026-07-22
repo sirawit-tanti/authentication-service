@@ -22,6 +22,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:database": "cross-env RUN_DATABASE_TESTS=true vitest run tests/integration/repositories",
+    "test:security": "vitest run tests/integration/security tests/integration/authentication/refresh.route.test.ts tests/integration/authentication/login-rate-limit.test.ts",
+    "check:security": "npm run typecheck && npm run lint && npm run format:check && npm run test:security",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate",
