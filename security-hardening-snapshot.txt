@@ -1,0 +1,1715 @@
+=== PACKAGE ===
+{
+  "name": "authentication-service",
+  "version": "1.0.0",
+  "description": "Production-oriented authentication service built with Fastify and TypeScript",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=22.0.0 <23.0.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "generate": "prisma generate",
+    "build": "npm run generate && tsc --project tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "npm run generate && tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:database": "cross-env RUN_DATABASE_TESTS=true vitest run tests/integration/repositories",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
+    "prisma:format": "prisma format",
+    "prisma:validate": "prisma validate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:seed": "prisma db seed",
+    "prisma:studio": "prisma studio",
+    "docker:up": "docker compose up --build",
+    "docker:up:detached": "docker compose up --build --detach",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs --follow app",
+    "docker:check": "docker compose exec app npm run check",
+    "dev:worker:email": "tsx watch src/workers/email.worker.ts",
+    "start:worker:email": "node dist/workers/email.worker.js",
+    "dev:worker:outbox": "tsx watch src/workers/outbox.worker.ts",
+    "start:worker:outbox": "node dist/workers/outbox.worker.js"
+  },
+  "keywords": [
+    "authentication",
+    "fastify",
+    "typescript",
+    "clean-architecture"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.0",
+    "@fastify/rate-limit": "^11.1.0",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "bcrypt": "^6.0.0",
+    "bullmq": "^5.80.2",
+    "dotenv": "^16.0.0",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.0.0",
+    "ioredis": "^5.11.1",
+    "jose": "^6.2.3",
+    "pg": "^8.22.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/bcrypt": "^6.0.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.20.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "cross-env": "^10.1.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "prisma": "^7.8.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0"
+  }
+}
+
+=== ENV CONFIG ===
+import 'dotenv/config';
+
+import { z } from 'zod';
+
+const environmentSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+
+  APP_NAME: z.string().trim().min(1).default('authentication-service'),
+
+  APP_HOST: z.string().trim().min(1).default('0.0.0.0'),
+
+  APP_PORT: z.coerce.number().int().positive().max(65_535).default(3000),
+
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+
+  DATABASE_URL: z
+    .string()
+    .trim()
+    .refine((url) => url.startsWith('postgresql://') || url.startsWith('postgres://'), {
+      message: 'DATABASE_URL must use the postgresql:// or postgres:// protocol',
+    }),
+
+  REDIS_URL: z
+    .string()
+    .trim()
+    .refine((url) => url.startsWith('redis://') || url.startsWith('rediss://'), {
+      message: 'REDIS_URL must use the redis:// or rediss:// protocol',
+    }),
+
+  REDIS_KEY_PREFIX: z
+    .string()
+    .trim()
+    .min(1)
+    .regex(/^[a-zA-Z0-9:_-]+$/, {
+      message:
+        'REDIS_KEY_PREFIX may contain only letters, numbers, colons, underscores, and hyphens',
+    })
+    .default('auth:'),
+
+  REDIS_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().max(60_000).default(10_000),
+
+  REDIS_MAX_RETRIES_PER_REQUEST: z.coerce.number().int().min(0).max(10).default(3),
+
+  BCRYPT_COST: z.coerce.number().int().min(10).max(15).default(12),
+
+  EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(1_440).default(60),
+
+  EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(3_600)
+    .default(60),
+
+  BULLMQ_PREFIX: z
+    .string()
+    .trim()
+    .min(1)
+    .regex(/^[a-zA-Z0-9_-]+$/, {
+      message: 'BULLMQ_PREFIX may contain only letters, numbers, underscores, and hyphens',
+    })
+    .default('auth-queue'),
+
+  EMAIL_QUEUE_NAME: z
+    .string()
+    .trim()
+    .min(1)
+    .regex(/^[a-zA-Z0-9_-]+$/, {
+      message: 'EMAIL_QUEUE_NAME may contain only letters, numbers, underscores, and hyphens',
+    })
+    .default('authentication-email'),
+
+  EMAIL_WORKER_CONCURRENCY: z.coerce.number().int().positive().max(50).default(5),
+
+  EMAIL_JOB_ATTEMPTS: z.coerce.number().int().min(1).max(20).default(5),
+
+  EMAIL_JOB_BACKOFF_MS: z.coerce.number().int().positive().max(300_000).default(5_000),
+
+  EMAIL_PROVIDER: z.enum(['development']).default('development'),
+
+  EMAIL_FROM_ADDRESS: z.string().trim().pipe(z.email()).default('no-reply@example.com'),
+
+  EMAIL_FROM_NAME: z.string().trim().min(1).max(100).default('Authentication Service'),
+
+  EMAIL_VERIFICATION_BASE_URL: z
+    .string()
+    .trim()
+    .pipe(z.url())
+    .default('http://localhost:3000/verify-email'),
+
+  OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().max(60_000).default(1_000),
+
+  OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().max(100).default(20),
+
+  OUTBOX_LOCK_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(15 * 60 * 1_000)
+    .default(60_000),
+
+  OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().positive().max(100).default(10),
+
+  LOGIN_MAX_FAILED_ATTEMPTS: z.coerce.number().int().positive().max(20).default(5),
+
+  LOGIN_LOCK_DURATION_MINUTES: z.coerce.number().int().positive().max(1_440).default(15),
+
+  JWT_ACCESS_TOKEN_SECRET: z
+    .string()
+    .min(32, 'JWT access token secret must contain at least 32 characters'),
+
+  JWT_ACCESS_TOKEN_ISSUER: z.string().trim().min(1).default('authentication-service'),
+
+  JWT_ACCESS_TOKEN_AUDIENCE: z.string().trim().min(1).default('internal-applications'),
+
+  JWT_ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().max(60).default(15),
+
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().max(90).default(30),
+
+  AUTH_RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().max(100).default(5),
+
+  AUTH_RATE_LIMIT_LOGIN_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60 * 1_000)
+    .default(60 * 1_000),
+
+  AUTH_RATE_LIMIT_REGISTER_MAX: z.coerce.number().int().positive().max(100).default(5),
+
+  AUTH_RATE_LIMIT_REGISTER_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60 * 1_000)
+    .default(60 * 60 * 1_000),
+
+  AUTH_RATE_LIMIT_EMAIL_MAX: z.coerce.number().int().positive().max(100).default(3),
+
+  AUTH_RATE_LIMIT_EMAIL_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60 * 1_000)
+    .default(15 * 60 * 1_000),
+
+  AUTH_RATE_LIMIT_PASSWORD_MAX: z.coerce.number().int().positive().max(100).default(5),
+
+  AUTH_RATE_LIMIT_PASSWORD_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60 * 1_000)
+    .default(15 * 60 * 1_000),
+
+  AUTH_RATE_LIMIT_REFRESH_MAX: z.coerce.number().int().positive().max(1_000).default(20),
+
+  AUTH_RATE_LIMIT_REFRESH_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60 * 1_000)
+    .default(60 * 1_000),
+
+  HTTP_BODY_LIMIT_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(10 * 1_024 * 1_024)
+    .default(64 * 1_024),
+
+  CORS_ALLOWED_ORIGINS: z.string().trim().default('http://localhost:3000'),
+
+  CORS_ALLOW_CREDENTIALS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value): boolean => value === 'true'),
+
+  HTTP_HSTS_MAX_AGE_SECONDS: z.coerce.number().int().positive().max(63_072_000).default(31_536_000),
+});
+
+const parsedEnvironment = environmentSchema.safeParse(process.env);
+
+if (!parsedEnvironment.success) {
+  const formattedErrors = z.flattenError(parsedEnvironment.error);
+
+  console.error('Invalid environment configuration:', {
+    formErrors: formattedErrors.formErrors,
+    fieldErrors: formattedErrors.fieldErrors,
+  });
+
+  throw new Error('Application environment configuration is invalid');
+}
+
+export const env = Object.freeze(parsedEnvironment.data);
+
+export type Environment = typeof env;
+
+=== HTTP SECURITY PLUGIN ===
+import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+import fastifyPlugin from 'fastify-plugin';
+
+import { env } from '@/shared/config/env.js';
+import { HTTP_SECURITY } from './http-security.js';
+import { CorsOriginNotAllowedError } from './cors-origin-not-allowed.error.js';
+
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (origin === undefined) {
+    return true;
+  }
+
+  return HTTP_SECURITY.allowedOrigins.has(origin);
+}
+
+async function httpSecurityPluginImplementation(fastify: FastifyInstance): Promise<void> {
+  await fastify.register(cors, {
+    credentials: HTTP_SECURITY.allowCredentials,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['authorization', 'content-type', 'x-request-id'],
+    exposedHeaders: [
+      'x-request-id',
+      'x-ratelimit-limit',
+      'x-ratelimit-remaining',
+      'x-ratelimit-reset',
+      'retry-after',
+    ],
+    maxAge: 60,
+    origin(origin, callback): void {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new CorsOriginNotAllowedError(), false);
+    },
+  });
+
+  await fastify.register(helmet, {
+    global: true,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'none'"],
+        baseUri: ["'none'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    referrerPolicy: {
+      policy: 'no-referrer',
+    },
+    frameguard: {
+      action: 'deny',
+    },
+    hsts:
+      env.NODE_ENV === 'production'
+        ? {
+            maxAge: HTTP_SECURITY.hstsMaxAgeSeconds,
+            includeSubDomains: true,
+            preload: false,
+          }
+        : false,
+  });
+
+  fastify.addHook('onSend', async (request: FastifyRequest, reply, payload): Promise<unknown> => {
+    if (request.url.startsWith('/api/v1/auth')) {
+      reply.header('Cache-Control', 'no-store, max-age=0');
+
+      reply.header('Pragma', 'no-cache');
+
+      reply.header('Expires', '0');
+    }
+
+    return payload;
+  });
+}
+
+export const httpSecurityPlugin = fastifyPlugin(httpSecurityPluginImplementation, {
+  name: 'http-security-plugin',
+});
+
+=== LOGIN ROUTES ===
+import type { FastifyPluginCallback } from 'fastify';
+
+import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
+import { createLoginController, type LoginUserExecutor } from './login.controller.js';
+import { loginRouteSchema, type LoginRequestBody } from './login.schema.js';
+
+export interface LoginRoutesOptions {
+  loginUserUseCase: LoginUserExecutor;
+}
+
+interface LoginRouteRequest {
+  Body: LoginRequestBody;
+}
+
+export const loginRoutes: FastifyPluginCallback<LoginRoutesOptions> = (
+  fastify,
+  options,
+  done,
+): void => {
+  const loginController = createLoginController({
+    loginUserUseCase: options.loginUserUseCase,
+  });
+
+  fastify.post<LoginRouteRequest>(
+    '/login',
+    {
+      schema: loginRouteSchema,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.LOGIN,
+      },
+    },
+    loginController,
+  );
+
+  done();
+};
+
+=== LOGIN CONTROLLER ===
+import type { FastifyReply, FastifyRequest } from 'fastify';
+
+import { InvalidCredentialsError } from '@/application/errors/invalid-credentials.error.js';
+import { OptimisticConcurrencyError } from '@/application/errors/optimistic-concurrency.error.js';
+import type {
+  LoginUserCommand,
+  LoginUserResult,
+} from '@/application/use-cases/authentication/login-user.use-case.js';
+import {
+  createErrorResponse,
+  createSuccessResponse,
+  type ApiErrorDetail,
+} from '@/shared/http/api-response.js';
+import { loginRequestSchema, type LoginRequestBody } from './login.schema.js';
+import { createRequestAuditContext } from '@/interfaces/http/auditing/request-audit-context.js';
+
+export interface LoginUserExecutor {
+  execute(command: LoginUserCommand): Promise<LoginUserResult>;
+}
+
+export interface LoginControllerDependencies {
+  loginUserUseCase: LoginUserExecutor;
+}
+
+interface LoginRouteRequest {
+  Body: LoginRequestBody;
+}
+
+export function createLoginController(
+  dependencies: LoginControllerDependencies,
+): (request: FastifyRequest<LoginRouteRequest>, reply: FastifyReply) => Promise<void> {
+  return async function loginController(
+    request: FastifyRequest<LoginRouteRequest>,
+    reply: FastifyReply,
+  ): Promise<void> {
+    const validationResult = loginRequestSchema.safeParse(request.body);
+
+    if (!validationResult.success) {
+      const details: ApiErrorDetail[] = validationResult.error.issues.map(
+        (issue): ApiErrorDetail => {
+          const field = issue.path.map(String).join('.');
+
+          if (field.length === 0) {
+            return {
+              code: issue.code,
+              message: issue.message,
+            };
+          }
+
+          return {
+            code: issue.code,
+            field,
+            message: issue.message,
+          };
+        },
+      );
+
+      await reply
+        .status(400)
+        .send(createErrorResponse('INVALID_REQUEST', 'Request validation failed', details));
+
+      return;
+    }
+
+    try {
+      const result = await dependencies.loginUserUseCase.execute({
+        applicationId: validationResult.data.applicationId,
+
+        email: validationResult.data.email,
+
+        password: validationResult.data.password,
+
+        ...createRequestAuditContext(request),
+      });
+
+      await reply.status(200).send(createSuccessResponse(result));
+    } catch (error: unknown) {
+      if (error instanceof InvalidCredentialsError) {
+        await reply
+          .status(401)
+          .send(createErrorResponse('INVALID_CREDENTIALS', 'Email or password is incorrect'));
+
+        return;
+      }
+
+      if (error instanceof OptimisticConcurrencyError) {
+        await reply
+          .status(409)
+          .send(
+            createErrorResponse(
+              'CONCURRENT_UPDATE',
+              'The user account was modified by another operation',
+            ),
+          );
+
+        return;
+      }
+
+      throw error;
+    }
+  };
+}
+
+=== LOGIN USE CASE ===
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
+import { InvalidCredentialsError } from '@/application/errors/invalid-credentials.error.js';
+import { OptimisticConcurrencyError } from '@/application/errors/optimistic-concurrency.error.js';
+import type { AuthenticationTokenPair } from '@/application/models/authentication-token-pair.js';
+import type { AccessTokenService } from '@/application/ports/authentication/access-token-service.js';
+import type { PasswordHasher } from '@/application/ports/authentication/password-hasher.js';
+import type { RefreshTokenService } from '@/application/ports/authentication/refresh-token-service.js';
+import type { LoginSessionRepository } from '@/application/ports/repositories/login-session.repository.js';
+import type { UserRepository } from '@/application/ports/repositories/user.repository.js';
+import type { Clock } from '@/application/ports/system/clock.js';
+import type { IdGenerator } from '@/application/ports/system/id-generator.js';
+import { EmailAddress } from '@/domain/authentication/value-objects/email-address.js';
+import { DomainValidationError } from '@/domain/errors/domain-validation.error.js';
+import type { User } from '@/domain/users/entities/user.entity.js';
+
+export interface LoginUserCommand extends AuditRequestContext {
+  applicationId: string;
+  email: string;
+  password: string;
+}
+
+export interface LoginUserResult {
+  user: {
+    userId: string;
+    email: string;
+    status: 'ACTIVE';
+  };
+
+  sessionId: string;
+  tokens: AuthenticationTokenPair;
+}
+
+export interface LoginUserUseCaseDependencies {
+  userRepository: UserRepository;
+  loginSessionRepository: LoginSessionRepository;
+  passwordHasher: PasswordHasher;
+  accessTokenService: AccessTokenService;
+  refreshTokenService: RefreshTokenService;
+  idGenerator: IdGenerator;
+  clock: Clock;
+  dummyPasswordHash: string;
+  maximumFailedAttempts: number;
+  lockDurationMinutes: number;
+  accessTokenTtlMinutes: number;
+  refreshTokenTtlDays: number;
+}
+
+export class LoginUserUseCase {
+  private readonly userRepository: UserRepository;
+
+  private readonly loginSessionRepository: LoginSessionRepository;
+
+  private readonly passwordHasher: PasswordHasher;
+
+  private readonly accessTokenService: AccessTokenService;
+
+  private readonly refreshTokenService: RefreshTokenService;
+
+  private readonly idGenerator: IdGenerator;
+
+  private readonly clock: Clock;
+
+  private readonly dummyPasswordHash: string;
+
+  private readonly maximumFailedAttempts: number;
+
+  private readonly lockDurationMilliseconds: number;
+
+  private readonly accessTokenExpiresInSeconds: number;
+
+  private readonly refreshTokenTtlMilliseconds: number;
+
+  public constructor(dependencies: LoginUserUseCaseDependencies) {
+    if (
+      !Number.isInteger(dependencies.maximumFailedAttempts) ||
+      dependencies.maximumFailedAttempts <= 0
+    ) {
+      throw new RangeError('Maximum failed login attempts must be a positive integer');
+    }
+
+    if (
+      !Number.isInteger(dependencies.lockDurationMinutes) ||
+      dependencies.lockDurationMinutes <= 0
+    ) {
+      throw new RangeError('Login lock duration must be a positive integer');
+    }
+
+    if (
+      !Number.isInteger(dependencies.accessTokenTtlMinutes) ||
+      dependencies.accessTokenTtlMinutes <= 0
+    ) {
+      throw new RangeError('Access token TTL must be a positive integer');
+    }
+
+    if (
+      !Number.isInteger(dependencies.refreshTokenTtlDays) ||
+      dependencies.refreshTokenTtlDays <= 0
+    ) {
+      throw new RangeError('Refresh token TTL must be a positive integer');
+    }
+
+    if (dependencies.dummyPasswordHash.trim().length === 0) {
+      throw new RangeError('Dummy password hash must not be empty');
+    }
+
+    this.userRepository = dependencies.userRepository;
+
+    this.loginSessionRepository = dependencies.loginSessionRepository;
+
+    this.passwordHasher = dependencies.passwordHasher;
+
+    this.accessTokenService = dependencies.accessTokenService;
+
+    this.refreshTokenService = dependencies.refreshTokenService;
+
+    this.idGenerator = dependencies.idGenerator;
+
+    this.clock = dependencies.clock;
+
+    this.dummyPasswordHash = dependencies.dummyPasswordHash;
+
+    this.maximumFailedAttempts = dependencies.maximumFailedAttempts;
+
+    this.lockDurationMilliseconds = dependencies.lockDurationMinutes * 60 * 1_000;
+
+    this.accessTokenExpiresInSeconds = dependencies.accessTokenTtlMinutes * 60;
+
+    this.refreshTokenTtlMilliseconds = dependencies.refreshTokenTtlDays * 24 * 60 * 60 * 1_000;
+  }
+
+  public async execute(command: LoginUserCommand): Promise<LoginUserResult> {
+    const email = await this.parseEmailOrReject(command.email, command.password);
+
+    const user = await this.userRepository.findByNormalizedEmail(email.normalizedValue);
+
+    const passwordHash = user?.getPasswordHash() ?? this.dummyPasswordHash;
+
+    const passwordMatches = await this.passwordHasher.verify(command.password, passwordHash);
+
+    if (user === null) {
+      throw new InvalidCredentialsError();
+    }
+
+    const now = this.clock.now();
+
+    if (user.isLocked(now)) {
+      throw new InvalidCredentialsError();
+    }
+
+    if (!passwordMatches) {
+      await this.recordFailedLogin({
+        user,
+        now,
+        command,
+      });
+
+      throw new InvalidCredentialsError();
+    }
+
+    if (!user.canAuthenticate(now)) {
+      throw new InvalidCredentialsError();
+    }
+
+    const expectedUserVersion = user.getVersion();
+
+    user.recordSuccessfulLogin(now);
+
+    const sessionId = this.idGenerator.generate();
+
+    const refreshTokenId = this.idGenerator.generate();
+
+    const refreshTokenFamilyId = this.idGenerator.generate();
+
+    const refreshToken = this.refreshTokenService.generate();
+
+    const refreshTokenExpiresAt = new Date(now.getTime() + this.refreshTokenTtlMilliseconds);
+
+    const accessToken = await this.accessTokenService.create({
+      claims: {
+        userId: user.getId(),
+        sessionId,
+        applicationId: command.applicationId,
+        email: user.getEmail().value,
+      },
+
+      issuedAt: now,
+    });
+
+    await this.loginSessionRepository.create({
+      user,
+      expectedUserVersion,
+
+      sessionId,
+      applicationId: command.applicationId,
+
+      refreshTokenId,
+      refreshTokenFamilyId,
+      refreshTokenJti: refreshToken.jti,
+      refreshTokenHash: refreshToken.tokenHash,
+
+      createdAt: now,
+      sessionExpiresAt: refreshTokenExpiresAt,
+      refreshTokenExpiresAt,
+
+      ...(command.requestId === undefined
+        ? {}
+        : {
+            requestId: command.requestId,
+          }),
+
+      ...(command.ipAddress === undefined
+        ? {}
+        : {
+            ipAddress: command.ipAddress,
+          }),
+
+      ...(command.userAgent === undefined
+        ? {}
+        : {
+            userAgent: command.userAgent,
+          }),
+    });
+
+    return {
+      user: {
+        userId: user.getId(),
+        email: user.getEmail().value,
+        status: 'ACTIVE',
+      },
+
+      sessionId,
+
+      tokens: {
+        accessToken,
+
+        refreshToken: refreshToken.rawToken,
+
+        tokenType: 'Bearer',
+
+        accessTokenExpiresInSeconds: this.accessTokenExpiresInSeconds,
+
+        refreshTokenExpiresAt,
+      },
+    };
+  }
+
+  private async parseEmailOrReject(rawEmail: string, password: string): Promise<EmailAddress> {
+    try {
+      return EmailAddress.create(rawEmail);
+    } catch (error: unknown) {
+      if (!(error instanceof DomainValidationError)) {
+        throw error;
+      }
+
+      await this.passwordHasher.verify(password, this.dummyPasswordHash);
+
+      throw new InvalidCredentialsError();
+    }
+  }
+
+  private async recordFailedLogin(input: {
+    user: User;
+    now: Date;
+    command: LoginUserCommand;
+  }): Promise<void> {
+    if (input.user.getStatus() !== 'ACTIVE' || !input.user.isEmailVerified()) {
+      return;
+    }
+
+    const expectedVersion = input.user.getVersion();
+
+    const wasLockedBeforeAttempt = input.user.isLocked(input.now);
+
+    input.user.recordFailedLogin({
+      maximumAttempts: this.maximumFailedAttempts,
+
+      lockDurationMilliseconds: this.lockDurationMilliseconds,
+
+      now: input.now,
+    });
+
+    const accountLocked = !wasLockedBeforeAttempt && input.user.isLocked(input.now);
+
+    try {
+      await this.userRepository.recordFailedLogin({
+        user: input.user,
+        expectedVersion,
+
+        applicationId: input.command.applicationId,
+
+        failedAt: input.now,
+        accountLocked,
+
+        ...(input.command.requestId === undefined
+          ? {}
+          : {
+              requestId: input.command.requestId,
+            }),
+
+        ...(input.command.ipAddress === undefined
+          ? {}
+          : {
+              ipAddress: input.command.ipAddress,
+            }),
+
+        ...(input.command.userAgent === undefined
+          ? {}
+          : {
+              userAgent: input.command.userAgent,
+            }),
+      });
+    } catch (error: unknown) {
+      if (!(error instanceof OptimisticConcurrencyError)) {
+        throw error;
+      }
+    }
+  }
+}
+
+=== LOGIN REPOSITORY PORT ===
+src/application/ports/repositories/login-session.repository.ts
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
+import type { User } from '@/domain/users/entities/user.entity.js';
+
+export interface CreateLoginSessionInput extends AuditRequestContext {
+  user: User;
+  expectedUserVersion: number;
+
+  sessionId: string;
+  applicationId: string;
+
+  refreshTokenId: string;
+  refreshTokenFamilyId: string;
+  refreshTokenJti: string;
+  refreshTokenHash: string;
+
+  createdAt: Date;
+  sessionExpiresAt: Date;
+  refreshTokenExpiresAt: Date;
+}
+
+export interface LoginSessionRepository {
+  create(input: CreateLoginSessionInput): Promise<void>;
+}
+
+=== PRISMA LOGIN REPOSITORY ===
+src/infrastructure/database/repositories/prisma-login-session.repository.ts
+import { SECURITY_AUDIT_ACTIONS } from '@/application/auditing/security-audit-action.js';
+import { OptimisticConcurrencyError } from '@/application/errors/optimistic-concurrency.error.js';
+import type {
+  CreateLoginSessionInput,
+  LoginSessionRepository,
+} from '@/application/ports/repositories/login-session.repository.js';
+import type { ApplicationPrismaClient } from '../prisma-client.js';
+
+const SESSION_RESOURCE_TYPE = 'SESSION';
+
+export class PrismaLoginSessionRepository implements LoginSessionRepository {
+  private readonly prisma: ApplicationPrismaClient;
+
+  public constructor(prisma: ApplicationPrismaClient) {
+    this.prisma = prisma;
+  }
+
+  public async create(input: CreateLoginSessionInput): Promise<void> {
+    await this.prisma.$transaction(
+      async (transaction) => {
+        const userState = input.user.toState();
+
+        const updateResult = await transaction.user.updateMany({
+          where: {
+            id: input.user.getId(),
+
+            version: input.expectedUserVersion,
+
+            deletedAt: null,
+          },
+
+          data: {
+            failedLoginAttempts: userState.failedLoginAttempts,
+
+            lockedUntil: userState.lockedUntil,
+
+            lastLoginAt: userState.lastLoginAt,
+
+            version: userState.version,
+
+            updatedAt: userState.updatedAt,
+          },
+        });
+
+        if (updateResult.count === 0) {
+          throw new OptimisticConcurrencyError('User', input.user.getId());
+        }
+
+        await transaction.session.create({
+          data: {
+            id: input.sessionId,
+
+            userId: input.user.getId(),
+
+            applicationId: input.applicationId,
+
+            status: 'ACTIVE',
+
+            lastActivityAt: input.createdAt,
+
+            expiresAt: input.sessionExpiresAt,
+
+            createdAt: input.createdAt,
+            updatedAt: input.createdAt,
+
+            refreshTokens: {
+              create: {
+                id: input.refreshTokenId,
+
+                familyId: input.refreshTokenFamilyId,
+
+                tokenHash: input.refreshTokenHash,
+
+                jti: input.refreshTokenJti,
+
+                expiresAt: input.refreshTokenExpiresAt,
+
+                createdAt: input.createdAt,
+              },
+            },
+
+            ...(input.ipAddress === undefined
+              ? {}
+              : {
+                  ipAddress: input.ipAddress,
+                }),
+
+            ...(input.userAgent === undefined
+              ? {}
+              : {
+                  userAgent: input.userAgent,
+                }),
+          },
+        });
+
+        await transaction.auditLog.create({
+          data: {
+            actorUserId: input.user.getId(),
+
+            action: SECURITY_AUDIT_ACTIONS.LOGIN_SUCCEEDED,
+
+            resourceType: SESSION_RESOURCE_TYPE,
+
+            resourceId: input.sessionId,
+
+            outcome: 'SUCCESS',
+
+            createdAt: input.createdAt,
+
+            metadata: {
+              applicationId: input.applicationId,
+
+              sessionId: input.sessionId,
+            },
+
+            ...(input.requestId === undefined
+              ? {}
+              : {
+                  requestId: input.requestId,
+                }),
+
+            ...(input.ipAddress === undefined
+              ? {}
+              : {
+                  ipAddress: input.ipAddress,
+                }),
+
+            ...(input.userAgent === undefined
+              ? {}
+              : {
+                  userAgent: input.userAgent,
+                }),
+          },
+        });
+      },
+      {
+        maxWait: 2_000,
+        timeout: 5_000,
+      },
+    );
+  }
+}
+
+=== REFRESH ROUTES ===
+import type { FastifyPluginCallback } from 'fastify';
+
+import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
+import { createRefreshController, type RefreshSessionExecutor } from './refresh.controller.js';
+import { refreshRouteSchema, type RefreshRequestBody } from './refresh.schema.js';
+
+export interface RefreshRoutesOptions {
+  refreshSessionUseCase: RefreshSessionExecutor;
+}
+
+interface RefreshRouteRequest {
+  Body: RefreshRequestBody;
+}
+
+export const refreshRoutes: FastifyPluginCallback<RefreshRoutesOptions> = (
+  fastify,
+  options,
+  done,
+): void => {
+  const refreshController = createRefreshController({
+    refreshSessionUseCase: options.refreshSessionUseCase,
+  });
+
+  fastify.post<RefreshRouteRequest>(
+    '/refresh',
+    {
+      schema: refreshRouteSchema,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.REFRESH,
+      },
+    },
+    refreshController,
+  );
+  done();
+};
+
+=== REFRESH USE CASE ===
+src/application/use-cases/authentication/refresh-session.use-case.ts
+import { InvalidRefreshTokenError } from '@/application/errors/invalid-refresh-token.error.js';
+import type { AuthenticationTokenPair } from '@/application/models/authentication-token-pair.js';
+import type { AccessTokenService } from '@/application/ports/authentication/access-token-service.js';
+import type { RefreshTokenService } from '@/application/ports/authentication/refresh-token-service.js';
+import type { RefreshSessionRepository } from '@/application/ports/repositories/refresh-session.repository.js';
+import type { Clock } from '@/application/ports/system/clock.js';
+import type { IdGenerator } from '@/application/ports/system/id-generator.js';
+
+export interface RefreshSessionCommand {
+  refreshToken: string;
+}
+
+export interface RefreshSessionResult {
+  sessionId: string;
+  tokens: AuthenticationTokenPair;
+}
+
+export interface RefreshSessionUseCaseDependencies {
+  repository: RefreshSessionRepository;
+  accessTokenService: AccessTokenService;
+  refreshTokenService: RefreshTokenService;
+  idGenerator: IdGenerator;
+  clock: Clock;
+  accessTokenTtlMinutes: number;
+  refreshTokenTtlDays: number;
+}
+
+export class RefreshSessionUseCase {
+  private readonly repository: RefreshSessionRepository;
+  private readonly accessTokenService: AccessTokenService;
+  private readonly refreshTokenService: RefreshTokenService;
+  private readonly idGenerator: IdGenerator;
+  private readonly clock: Clock;
+  private readonly accessTokenExpiresInSeconds: number;
+  private readonly refreshTokenTtlMilliseconds: number;
+
+  public constructor(dependencies: RefreshSessionUseCaseDependencies) {
+    if (
+      !Number.isInteger(dependencies.accessTokenTtlMinutes) ||
+      dependencies.accessTokenTtlMinutes <= 0
+    ) {
+      throw new RangeError('Access token TTL must be a positive integer');
+    }
+
+    if (
+      !Number.isInteger(dependencies.refreshTokenTtlDays) ||
+      dependencies.refreshTokenTtlDays <= 0
+    ) {
+      throw new RangeError('Refresh token TTL must be a positive integer');
+    }
+
+    this.repository = dependencies.repository;
+    this.accessTokenService = dependencies.accessTokenService;
+    this.refreshTokenService = dependencies.refreshTokenService;
+    this.idGenerator = dependencies.idGenerator;
+    this.clock = dependencies.clock;
+    this.accessTokenExpiresInSeconds = dependencies.accessTokenTtlMinutes * 60;
+    this.refreshTokenTtlMilliseconds = dependencies.refreshTokenTtlDays * 24 * 60 * 60 * 1_000;
+  }
+
+  public async execute(command: RefreshSessionCommand): Promise<RefreshSessionResult> {
+    const rawCurrentToken = command.refreshToken.trim();
+
+    if (rawCurrentToken.length === 0) {
+      throw new InvalidRefreshTokenError();
+    }
+
+    const rotatedAt = this.clock.now();
+
+    const newRefreshToken = this.refreshTokenService.generate();
+
+    const requestedTokenExpiresAt = new Date(
+      rotatedAt.getTime() + this.refreshTokenTtlMilliseconds,
+    );
+
+    const rotationResult = await this.repository.rotate({
+      currentTokenHash: this.refreshTokenService.hash(rawCurrentToken),
+      newTokenId: this.idGenerator.generate(),
+      newTokenJti: newRefreshToken.jti,
+      newTokenHash: newRefreshToken.tokenHash,
+      rotatedAt,
+      requestedTokenExpiresAt,
+    });
+
+    if (rotationResult.status !== 'ROTATED') {
+      throw new InvalidRefreshTokenError();
+    }
+
+    const accessToken = await this.accessTokenService.create({
+      claims: {
+        userId: rotationResult.userId,
+        sessionId: rotationResult.sessionId,
+        applicationId: rotationResult.applicationId,
+        email: rotationResult.userEmail,
+      },
+      issuedAt: rotatedAt,
+    });
+
+    return {
+      sessionId: rotationResult.sessionId,
+      tokens: {
+        accessToken,
+        refreshToken: newRefreshToken.rawToken,
+        tokenType: 'Bearer',
+        accessTokenExpiresInSeconds: this.accessTokenExpiresInSeconds,
+        refreshTokenExpiresAt: rotationResult.refreshTokenExpiresAt,
+      },
+    };
+  }
+}
+
+=== REFRESH REPOSITORIES ===
+src/infrastructure/database/repositories/prisma-refresh-session.repository.ts
+import type {
+  RefreshSessionRepository,
+  RotateSessionRefreshTokenInput,
+  RotateSessionRefreshTokenResult,
+} from '@/application/ports/repositories/refresh-session.repository.js';
+import type { ApplicationPrismaClient } from '../prisma-client.js';
+
+const REUSE_REVOKE_REASON = 'Refresh token reuse detected';
+
+export class PrismaRefreshSessionRepository implements RefreshSessionRepository {
+  private readonly prisma: ApplicationPrismaClient;
+
+  public constructor(prisma: ApplicationPrismaClient) {
+    this.prisma = prisma;
+  }
+
+  public async rotate(
+    input: RotateSessionRefreshTokenInput,
+  ): Promise<RotateSessionRefreshTokenResult> {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const currentToken = await transaction.refreshToken.findUnique({
+          where: {
+            tokenHash: input.currentTokenHash,
+          },
+
+          include: {
+            session: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        });
+
+        if (currentToken === null) {
+          return {
+            status: 'INVALID',
+          };
+        }
+
+        const session = currentToken.session;
+        const user = session.user;
+
+        const tokenWasPreviouslyUsed =
+          currentToken.usedAt !== null ||
+          currentToken.revokedAt !== null ||
+          currentToken.replacedByTokenId !== null;
+
+        if (tokenWasPreviouslyUsed) {
+          await transaction.refreshToken.updateMany({
+            where: {
+              familyId: currentToken.familyId,
+              revokedAt: null,
+            },
+
+            data: {
+              revokedAt: input.rotatedAt,
+              revokeReason: REUSE_REVOKE_REASON,
+            },
+          });
+
+          await transaction.session.updateMany({
+            where: {
+              id: session.id,
+              status: 'ACTIVE',
+            },
+
+            data: {
+              status: 'REVOKED',
+              revokedAt: input.rotatedAt,
+              revokeReason: REUSE_REVOKE_REASON,
+              updatedAt: input.rotatedAt,
+            },
+          });
+
+          return {
+            status: 'REUSE_DETECTED',
+          };
+        }
+
+        const tokenHasExpired = currentToken.expiresAt.getTime() <= input.rotatedAt.getTime();
+
+        const sessionHasExpired = session.expiresAt.getTime() <= input.rotatedAt.getTime();
+
+        const sessionIsUnavailable = session.status !== 'ACTIVE' || session.revokedAt !== null;
+
+        const userCannotAuthenticate =
+          user.deletedAt !== null || user.status !== 'ACTIVE' || !user.emailVerified;
+
+        if (
+          tokenHasExpired ||
+          sessionHasExpired ||
+          sessionIsUnavailable ||
+          userCannotAuthenticate
+        ) {
+          if (sessionHasExpired && session.status === 'ACTIVE') {
+            await transaction.session.updateMany({
+              where: {
+                id: session.id,
+                status: 'ACTIVE',
+              },
+
+              data: {
+                status: 'EXPIRED',
+                updatedAt: input.rotatedAt,
+              },
+            });
+          }
+
+          return {
+            status: 'INVALID',
+          };
+        }
+
+        const refreshTokenExpiresAt = new Date(
+          Math.min(input.requestedTokenExpiresAt.getTime(), session.expiresAt.getTime()),
+        );
+
+        await transaction.refreshToken.create({
+          data: {
+            id: input.newTokenId,
+            sessionId: session.id,
+            familyId: currentToken.familyId,
+            tokenHash: input.newTokenHash,
+            jti: input.newTokenJti,
+            expiresAt: refreshTokenExpiresAt,
+            createdAt: input.rotatedAt,
+          },
+        });
+
+        const currentTokenUpdate = await transaction.refreshToken.updateMany({
+          where: {
+            id: currentToken.id,
+            usedAt: null,
+            revokedAt: null,
+            replacedByTokenId: null,
+          },
+
+          data: {
+            usedAt: input.rotatedAt,
+            replacedByTokenId: input.newTokenId,
+          },
+        });
+
+        if (currentTokenUpdate.count === 0) {
+          await transaction.refreshToken.deleteMany({
+            where: {
+              id: input.newTokenId,
+              usedAt: null,
+              replacedByTokenId: null,
+            },
+          });
+
+          await transaction.refreshToken.updateMany({
+            where: {
+              familyId: currentToken.familyId,
+              revokedAt: null,
+            },
+
+            data: {
+              revokedAt: input.rotatedAt,
+              revokeReason: REUSE_REVOKE_REASON,
+            },
+          });
+
+          await transaction.session.updateMany({
+            where: {
+              id: session.id,
+              status: 'ACTIVE',
+            },
+
+            data: {
+              status: 'REVOKED',
+              revokedAt: input.rotatedAt,
+              revokeReason: REUSE_REVOKE_REASON,
+              updatedAt: input.rotatedAt,
+            },
+          });
+
+          return {
+            status: 'REUSE_DETECTED',
+          };
+        }
+
+        await transaction.session.update({
+          where: {
+            id: session.id,
+          },
+
+          data: {
+            lastActivityAt: input.rotatedAt,
+            updatedAt: input.rotatedAt,
+          },
+        });
+
+        return {
+          status: 'ROTATED',
+
+          userId: user.id,
+          userEmail: user.email,
+          applicationId: session.applicationId,
+          sessionId: session.id,
+
+          refreshTokenExpiresAt,
+        };
+      },
+      {
+        maxWait: 2_000,
+        timeout: 5_000,
+      },
+    );
+  }
+}
+
+=== FORGOT PASSWORD ROUTES ===
+import type { FastifyPluginCallback } from 'fastify';
+
+import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
+import {
+  createForgotPasswordController,
+  type ForgotPasswordExecutor,
+} from './forgot-password.controller.js';
+import {
+  forgotPasswordRouteSchema,
+  type ForgotPasswordRequestBody,
+} from './forgot-password.schema.js';
+
+export interface ForgotPasswordRoutesOptions {
+  forgotPasswordUseCase: ForgotPasswordExecutor;
+}
+
+interface ForgotPasswordRouteRequest {
+  Body: ForgotPasswordRequestBody;
+}
+
+export const forgotPasswordRoutes: FastifyPluginCallback<ForgotPasswordRoutesOptions> = (
+  fastify,
+  options,
+  done,
+): void => {
+  fastify.post<ForgotPasswordRouteRequest>(
+    '/forgot-password',
+    {
+      schema: forgotPasswordRouteSchema,
+      config: {
+        rateLimit: AUTHENTICATION_RATE_LIMITS.EMAIL_ACTION,
+      },
+    },
+    createForgotPasswordController({
+      forgotPasswordUseCase: options.forgotPasswordUseCase,
+    }),
+  );
+
+  done();
+};
+
+=== APP ===
+import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions } from 'fastify';
+
+import {
+  createInfrastructureContainer,
+  type InfrastructureContainer,
+} from './infrastructure/container/infrastructure-container.js';
+import { infrastructurePlugin } from './infrastructure/container/infrastructure.plugin.js';
+import { authenticationPlugin } from './interfaces/http/modules/authentication/authentication.plugin.js';
+import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
+import { auditingPlugin } from './interfaces/http/modules/auditing/auditing.plugin.js';
+import { authorizationPlugin } from './interfaces/http/modules/authorization/authorization.plugin.js';
+import { usersPlugin } from './interfaces/http/modules/users/users.plugin.js';
+import { apiV1Routes } from './interfaces/http/routes/index.js';
+import { env } from './shared/config/env.js';
+import { errorHandler } from './shared/errors/error-handler.js';
+
+export interface BuildApplicationOptions {
+  logger?: FastifyServerOptions['logger'];
+  registerInfrastructure?: boolean;
+  infrastructure?: InfrastructureContainer;
+}
+
+export async function buildApplication(
+  options: BuildApplicationOptions = {},
+): Promise<FastifyInstance> {
+  const application = Fastify({
+    logger: options.logger ?? {
+      level: env.LOG_LEVEL,
+
+      redact: {
+        paths: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'request.headers.authorization',
+          'request.headers.cookie',
+          'req.body.password',
+          'req.body.refreshToken',
+          'request.body.password',
+          'request.body.refreshToken',
+          'req.body.currentPassword',
+          'request.body.currentPassword',
+          'req.body.newPassword',
+          'request.body.newPassword',
+          'req.body.token',
+          'request.body.token',
+          'password',
+          'currentPassword',
+          'newPassword',
+          'passwordHash',
+          'token',
+          'tokenHash',
+          'verificationToken',
+          'resetToken',
+          'accessToken',
+          'refreshToken',
+          'clientSecret',
+          'clientSecretHash',
+          'apiKey',
+          'keyHash',
+          'refreshToken',
+        ],
+        censor: '[REDACTED]',
+      },
+    },
+
+    bodyLimit: env.HTTP_BODY_LIMIT_BYTES,
+
+    ajv: {
+      customOptions: {
+        removeAdditional: false,
+      },
+    },
+
+    requestIdHeader: 'x-request-id',
+
+    logController: new LogController({
+      requestIdLogLabel: 'requestId',
+      disableRequestLogging: false,
+    }),
+  });
+
+  await application.register(errorHandler);
+
+  await application.register(httpSecurityPlugin);
+
+  if (options.registerInfrastructure !== false) {
+    const infrastructure = options.infrastructure ?? createInfrastructureContainer();
+
+    await application.register(infrastructurePlugin, {
+      container: infrastructure,
+    });
+
+    await application.register(authenticationPlugin);
+
+    await application.register(auditingPlugin);
+
+    await application.register(authorizationPlugin);
+
+    await application.register(usersPlugin);
+  }
+
+  await application.register(apiV1Routes, {
+    prefix: '/api/v1',
+  });
+
+  return application;
+}
+
+=== RATE LIMIT SEARCH ===
+src/application/ports/repositories/user-administration-query.repository.ts:18:  failedLoginAttempts: number;
+src/domain/users/entities/user.entity.ts:11:  failedLoginAttempts: number;
+src/domain/users/entities/user.entity.ts:44:  private failedLoginAttempts: number;
+src/domain/users/entities/user.entity.ts:66:    this.failedLoginAttempts = state.failedLoginAttempts;
+src/domain/users/entities/user.entity.ts:82:      failedLoginAttempts: 0,
+src/domain/users/entities/user.entity.ts:117:    return this.failedLoginAttempts;
+src/domain/users/entities/user.entity.ts:190:    this.failedLoginAttempts += 1;
+src/domain/users/entities/user.entity.ts:192:    if (this.failedLoginAttempts >= options.maximumAttempts) {
+src/domain/users/entities/user.entity.ts:200:    this.failedLoginAttempts = 0;
+src/domain/users/entities/user.entity.ts:222:    this.failedLoginAttempts = 0;
+src/domain/users/entities/user.entity.ts:279:      failedLoginAttempts: this.failedLoginAttempts,
+src/domain/users/entities/user.entity.ts:309:    if (state.failedLoginAttempts < 0) {
+src/domain/users/entities/user.entity.ts:312:        field: 'failedLoginAttempts',
+src/generated/prisma/internal/class.ts:23:  "inlineSchema": "generator client {\n  provider = \"prisma-client\"\n  output   = \"../src/generated/prisma\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n}\n\nenum UserStatus {\n  PENDING_VERIFICATION\n  ACTIVE\n  SUSPENDED\n  DISABLED\n\n  @@map(\"user_status\")\n}\n\nenum SessionStatus {\n  ACTIVE\n  REVOKED\n  EXPIRED\n\n  @@map(\"session_status\")\n}\n\nenum AuditOutcome {\n  SUCCESS\n  FAILURE\n\n  @@map(\"audit_outcome\")\n}\n\nenum ApiKeyStatus {\n  ACTIVE\n  REVOKED\n  EXPIRED\n\n  @@map(\"api_key_status\")\n}\n\nenum OAuthProvider {\n  GOOGLE\n  MICROSOFT\n  GITHUB\n  CUSTOM\n\n  @@map(\"oauth_provider\")\n}\n\nenum OutboxStatus {\n  PENDING\n  PROCESSING\n  PUBLISHED\n  FAILED\n}\n\nmodel User {\n  id String @id @default(uuid()) @db.Uuid\n\n  email           String @db.VarChar(320)\n  normalizedEmail String @unique(map: \"users_normalized_email_key\") @map(\"normalized_email\") @db.VarChar(320)\n  passwordHash    String @map(\"password_hash\") @db.VarChar(255)\n\n  status        UserStatus @default(PENDING_VERIFICATION)\n  emailVerified Boolean    @default(false) @map(\"email_verified\")\n\n  failedLoginAttempts Int       @default(0) @map(\"failed_login_attempts\")\n  lockedUntil         DateTime? @map(\"locked_until\") @db.Timestamptz(3)\n\n  passwordChangedAt DateTime? @map(\"password_changed_at\") @db.Timestamptz(3)\n  lastLoginAt       DateTime? @map(\"last_login_at\") @db.Timestamptz(3)\n\n  version Int @default(1)\n\n  createdAt DateTime  @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n  updatedAt DateTime  @updatedAt @map(\"updated_at\") @db.Timestamptz(3)\n  deletedAt DateTime? @map(\"deleted_at\") @db.Timestamptz(3)\n\n  profile                 UserProfile?\n  userRoles               UserRole[]\n  sessions                Session[]\n  devices                 Device[]\n  emailVerificationTokens EmailVerificationToken[]\n  passwordResetTokens     PasswordResetToken[]\n  auditLogs               AuditLog[]\n  apiKeys                 ApiKey[]\n  oauthAccounts           OAuthAccount[]\n\n  @@index([status], map: \"users_status_idx\")\n  @@index([deletedAt], map: \"users_deleted_at_idx\")\n  @@map(\"users\")\n}\n\nmodel UserProfile {\n  id String @id @default(uuid()) @db.Uuid\n\n  userId String @unique(map: \"user_profiles_user_id_key\") @map(\"user_id\") @db.Uuid\n\n  firstName   String? @map(\"first_name\") @db.VarChar(100)\n  lastName    String? @map(\"last_name\") @db.VarChar(100)\n  displayName String? @map(\"display_name\") @db.VarChar(150)\n  phoneNumber String? @map(\"phone_number\") @db.VarChar(30)\n  locale      String  @default(\"th-TH\") @db.VarChar(20)\n  timezone    String  @default(\"Asia/Bangkok\") @db.VarChar(50)\n\n  avatarUrl String? @map(\"avatar_url\") @db.VarChar(2048)\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n  updatedAt DateTime @updatedAt @map(\"updated_at\") @db.Timestamptz(3)\n\n  user User @relation(fields: [userId], references: [id], onDelete: Cascade)\n\n  @@map(\"user_profiles\")\n}\n\nmodel Application {\n  id String @id @default(uuid()) @db.Uuid\n\n  code        String  @unique(map: \"applications_code_key\") @db.VarChar(50)\n  name        String  @db.VarChar(150)\n  description String? @db.VarChar(500)\n  isActive    Boolean @default(true) @map(\"is_active\")\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n  updatedAt DateTime @updatedAt @map(\"updated_at\") @db.Timestamptz(3)\n\n  roles        Role[]\n  permissions  Permission[]\n  sessions     Session[]\n  auditLogs    AuditLog[]\n  apiKeys      ApiKey[]\n  oauthClients OAuthClient[]\n\n  @@index([isActive], map: \"applications_is_active_idx\")\n  @@map(\"applications\")\n}\n\nmodel Role {\n  id String @id @default(uuid()) @db.Uuid\n\n  applicationId String @map(\"application_id\") @db.Uuid\n\n  code        String  @db.VarChar(100)\n  name        String  @db.VarChar(150)\n  description String? @db.VarChar(500)\n  isSystem    Boolean @default(false) @map(\"is_system\")\n  isActive    Boolean @default(true) @map(\"is_active\")\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n  updatedAt DateTime @updatedAt @map(\"updated_at\") @db.Timestamptz(3)\n\n  application     Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)\n  userRoles       UserRole[]\n  rolePermissions RolePermission[]\n\n  @@unique([applicationId, code], map: \"roles_application_id_code_key\")\n  @@index([applicationId, isActive], map: \"roles_application_active_idx\")\n  @@map(\"roles\")\n}\n\nmodel Permission {\n  id String @id @default(uuid()) @db.Uuid\n\n  applicationId String @map(\"application_id\") @db.Uuid\n\n  code        String  @db.VarChar(150)\n  name        String  @db.VarChar(150)\n  description String? @db.VarChar(500)\n  resource    String  @db.VarChar(100)\n  action      String  @db.VarChar(100)\n  isActive    Boolean @default(true) @map(\"is_active\")\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n  updatedAt DateTime @updatedAt @map(\"updated_at\") @db.Timestamptz(3)\n\n  application     Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)\n  rolePermissions RolePermission[]\n\n  @@unique([applicationId, code], map: \"permissions_application_id_code_key\")\n  @@index([applicationId, resource, action], map: \"permissions_resource_action_idx\")\n  @@map(\"permissions\")\n}\n\nmodel UserRole {\n  id String @id @default(uuid()) @db.Uuid\n\n  userId String @map(\"user_id\") @db.Uuid\n  roleId String @map(\"role_id\") @db.Uuid\n\n  assignedAt   DateTime  @default(now()) @map(\"assigned_at\") @db.Timestamptz(3)\n  assignedById String?   @map(\"assigned_by_id\") @db.Uuid\n  expiresAt    DateTime? @map(\"expires_at\") @db.Timestamptz(3)\n\n  user User @relation(fields: [userId], references: [id], onDelete: Cascade)\n  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)\n\n  @@unique([userId, roleId], map: \"user_roles_user_id_role_id_key\")\n  @@index([userId], map: \"user_roles_user_id_idx\")\n  @@index([roleId], map: \"user_roles_role_id_idx\")\n  @@index([expiresAt], map: \"user_roles_expires_at_idx\")\n  @@map(\"user_roles\")\n}\n\nmodel RolePermission {\n  id String @id @default(uuid()) @db.Uuid\n\n  roleId       String @map(\"role_id\") @db.Uuid\n  permissionId String @map(\"permission_id\") @db.Uuid\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n\n  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)\n  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)\n\n  @@unique([roleId, permissionId], map: \"role_permissions_role_id_permission_id_key\")\n  @@index([roleId], map: \"role_permissions_role_id_idx\")\n  @@index([permissionId], map: \"role_permissions_permission_id_idx\")\n  @@map(\"role_permissions\")\n}\n\nmodel Device {\n  id String @id @default(uuid()) @db.Uuid\n\n  userId String @map(\"user_id\") @db.Uuid\n\n  fingerprintHash String  @map(\"fingerprint_hash\") @db.VarChar(255)\n  deviceName      String? @map(\"device_name\") @db.VarChar(150)\n  deviceType      String? @map(\"device_type\") @db.VarChar(50)\n  operatingSystem String? @map(\"operating_system\") @db.VarChar(100)\n  browser         String? @db.VarChar(100)\n\n  trusted    Boolean   @default(false)\n  trustedAt  DateTime? @map(\"trusted_at\") @db.Timestamptz(3)\n  lastSeenAt DateTime  @default(now()) @map(\"last_seen_at\") @db.Timestamptz(3)\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n  updatedAt DateTime @updatedAt @map(\"updated_at\") @db.Timestamptz(3)\n\n  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)\n  sessions Session[]\n\n  @@unique([userId, fingerprintHash], map: \"devices_user_id_fingerprint_hash_key\")\n  @@index([userId, lastSeenAt], map: \"devices_user_last_seen_idx\")\n  @@map(\"devices\")\n}\n\nmodel Session {\n  id String @id @default(uuid()) @db.Uuid\n\n  userId        String  @map(\"user_id\") @db.Uuid\n  applicationId String  @map(\"application_id\") @db.Uuid\n  deviceId      String? @map(\"device_id\") @db.Uuid\n\n  status SessionStatus @default(ACTIVE)\n\n  ipAddress String? @map(\"ip_address\") @db.Inet\n  userAgent String? @map(\"user_agent\") @db.Text\n\n  lastActivityAt DateTime  @default(now()) @map(\"last_activity_at\") @db.Timestamptz(3)\n  expiresAt      DateTime  @map(\"expires_at\") @db.Timestamptz(3)\n  revokedAt      DateTime? @map(\"revoked_at\") @db.Timestamptz(3)\n  revokeReason   String?   @map(\"revoke_reason\") @db.VarChar(255)\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n  updatedAt DateTime @updatedAt @map(\"updated_at\") @db.Timestamptz(3)\n\n  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)\n  application   Application    @relation(fields: [applicationId], references: [id], onDelete: Restrict)\n  device        Device?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)\n  refreshTokens RefreshToken[]\n\n  @@index([userId, status], map: \"sessions_user_status_idx\")\n  @@index([applicationId, status], map: \"sessions_application_status_idx\")\n  @@index([expiresAt], map: \"sessions_expires_at_idx\")\n  @@index([deviceId], map: \"sessions_device_id_idx\")\n  @@map(\"sessions\")\n}\n\nmodel RefreshToken {\n  id String @id @default(uuid()) @db.Uuid\n\n  sessionId String @map(\"session_id\") @db.Uuid\n  familyId  String @map(\"family_id\") @db.Uuid\n\n  tokenHash String @unique(map: \"refresh_tokens_token_hash_key\") @map(\"token_hash\") @db.VarChar(255)\n  jti       String @unique(map: \"refresh_tokens_jti_key\") @db.Uuid\n\n  expiresAt DateTime  @map(\"expires_at\") @db.Timestamptz(3)\n  usedAt    DateTime? @map(\"used_at\") @db.Timestamptz(3)\n  revokedAt DateTime? @map(\"revoked_at\") @db.Timestamptz(3)\n\n  replacedByTokenId String? @unique(map: \"refresh_tokens_replaced_by_token_id_key\") @map(\"replaced_by_token_id\") @db.Uuid\n  revokeReason      String? @map(\"revoke_reason\") @db.VarChar(255)\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n\n  session         Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)\n  replacedByToken RefreshToken? @relation(\"RefreshTokenRotation\", fields: [replacedByTokenId], references: [id], onDelete: SetNull)\n  replacesToken   RefreshToken? @relation(\"RefreshTokenRotation\")\n\n  @@index([sessionId], map: \"refresh_tokens_session_id_idx\")\n  @@index([familyId], map: \"refresh_tokens_family_id_idx\")\n  @@index([expiresAt], map: \"refresh_tokens_expires_at_idx\")\n  @@map(\"refresh_tokens\")\n}\n\nmodel EmailVerificationToken {\n  id String @id @default(uuid()) @db.Uuid\n\n  userId String @map(\"user_id\") @db.Uuid\n\n  tokenHash String @unique(map: \"email_verification_tokens_token_hash_key\") @map(\"token_hash\") @db.VarChar(255)\n\n  expiresAt DateTime  @map(\"expires_at\") @db.Timestamptz(3)\n  usedAt    DateTime? @map(\"used_at\") @db.Timestamptz(3)\n  createdAt DateTime  @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n\n  user User @relation(fields: [userId], references: [id], onDelete: Cascade)\n\n  @@index([userId], map: \"email_verification_tokens_user_id_idx\")\n  @@index([expiresAt], map: \"email_verification_tokens_expires_at_idx\")\n  @@map(\"email_verification_tokens\")\n}\n\nmodel PasswordResetToken {\n  id String @id @default(uuid()) @db.Uuid\n\n  userId String @map(\"user_id\") @db.Uuid\n\n  tokenHash String @unique(map: \"password_reset_tokens_token_hash_key\") @map(\"token_hash\") @db.VarChar(255)\n\n  expiresAt DateTime  @map(\"expires_at\") @db.Timestamptz(3)\n  usedAt    DateTime? @map(\"used_at\") @db.Timestamptz(3)\n  createdAt DateTime  @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n\n  user User @relation(fields: [userId], references: [id], onDelete: Cascade)\n\n  @@index([userId], map: \"password_reset_tokens_user_id_idx\")\n  @@index([expiresAt], map: \"password_reset_tokens_expires_at_idx\")\n  @@map(\"password_reset_tokens\")\n}\n\nmodel TokenBlacklist {\n  id String @id @default(uuid()) @db.Uuid\n\n  jti       String   @unique(map: \"token_blacklist_jti_key\") @db.Uuid\n  tokenType String   @map(\"token_type\") @db.VarChar(30)\n  reason    String?  @db.VarChar(255)\n  expiresAt DateTime @map(\"expires_at\") @db.Timestamptz(3)\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n\n  @@index([expiresAt], map: \"token_blacklist_expires_at_idx\")\n  @@map(\"token_blacklist\")\n}\n\nmodel AuditLog {\n  id String @id @default(uuid()) @db.Uuid\n\n  applicationId String? @map(\"application_id\") @db.Uuid\n  actorUserId   String? @map(\"actor_user_id\") @db.Uuid\n\n  action       String       @db.VarChar(150)\n  resourceType String?      @map(\"resource_type\") @db.VarChar(100)\n  resourceId   String?      @map(\"resource_id\") @db.VarChar(100)\n  outcome      AuditOutcome\n\n  ipAddress String? @map(\"ip_address\") @db.Inet\n  userAgent String? @map(\"user_agent\") @db.Text\n  requestId String? @map(\"request_id\") @db.VarChar(100)\n\n  metadata     Json?\n  errorMessage String? @map(\"error_message\") @db.Text\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n\n  application Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)\n  actorUser   User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)\n\n  @@index([applicationId, createdAt, id], map: \"audit_logs_application_created_at_id_idx\")\n  @@index([actorUserId, createdAt], map: \"audit_logs_actor_created_at_idx\")\n  @@index([action, createdAt], map: \"audit_logs_action_created_at_idx\")\n  @@index([resourceType, resourceId], map: \"audit_logs_resource_idx\")\n  @@index([requestId], map: \"audit_logs_request_id_idx\")\n  @@map(\"audit_logs\")\n}\n\nmodel ApiKey {\n  id String @id @default(uuid()) @db.Uuid\n\n  applicationId String  @map(\"application_id\") @db.Uuid\n  ownerUserId   String? @map(\"owner_user_id\") @db.Uuid\n\n  name       String       @db.VarChar(150)\n  keyPrefix  String       @map(\"key_prefix\") @db.VarChar(20)\n  keyHash    String       @unique(map: \"api_keys_key_hash_key\") @map(\"key_hash\") @db.VarChar(255)\n  status     ApiKeyStatus @default(ACTIVE)\n  scopes     String[]\n  lastUsedAt DateTime?    @map(\"last_used_at\") @db.Timestamptz(3)\n  expiresAt  DateTime?    @map(\"expires_at\") @db.Timestamptz(3)\n  revokedAt  DateTime?    @map(\"revoked_at\") @db.Timestamptz(3)\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n  updatedAt DateTime @updatedAt @map(\"updated_at\") @db.Timestamptz(3)\n\n  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)\n  ownerUser   User?       @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)\n\n  @@index([applicationId, status], map: \"api_keys_application_status_idx\")\n  @@index([keyPrefix], map: \"api_keys_key_prefix_idx\")\n  @@index([expiresAt], map: \"api_keys_expires_at_idx\")\n  @@map(\"api_keys\")\n}\n\nmodel OAuthClient {\n  id String @id @default(uuid()) @db.Uuid\n\n  applicationId String @map(\"application_id\") @db.Uuid\n\n  clientId         String   @unique(map: \"oauth_clients_client_id_key\") @map(\"client_id\") @db.VarChar(100)\n  clientSecretHash String   @map(\"client_secret_hash\") @db.VarChar(255)\n  name             String   @db.VarChar(150)\n  redirectUris     String[] @map(\"redirect_uris\")\n  allowedScopes    String[] @map(\"allowed_scopes\")\n  isActive         Boolean  @default(true) @map(\"is_active\")\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n  updatedAt DateTime @updatedAt @map(\"updated_at\") @db.Timestamptz(3)\n\n  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)\n\n  @@index([applicationId, isActive], map: \"oauth_clients_application_active_idx\")\n  @@map(\"oauth_clients\")\n}\n\nmodel OAuthAccount {\n  id String @id @default(uuid()) @db.Uuid\n\n  userId String @map(\"user_id\") @db.Uuid\n\n  provider          OAuthProvider\n  providerAccountId String        @map(\"provider_account_id\") @db.VarChar(255)\n\n  accessTokenEncrypted  String?   @map(\"access_token_encrypted\") @db.Text\n  refreshTokenEncrypted String?   @map(\"refresh_token_encrypted\") @db.Text\n  tokenExpiresAt        DateTime? @map(\"token_expires_at\") @db.Timestamptz(3)\n\n  createdAt DateTime @default(now()) @map(\"created_at\") @db.Timestamptz(3)\n  updatedAt DateTime @updatedAt @map(\"updated_at\") @db.Timestamptz(3)\n\n  user User @relation(fields: [userId], references: [id], onDelete: Cascade)\n\n  @@unique([provider, providerAccountId], map: \"oauth_accounts_provider_account_id_key\")\n  @@index([userId], map: \"oauth_accounts_user_id_idx\")\n  @@map(\"oauth_accounts\")\n}\n\nmodel OutboxMessage {\n  id          String       @id @db.Uuid\n  topic       String       @db.VarChar(100)\n  eventType   String       @map(\"event_type\") @db.VarChar(100)\n  aggregateId String?      @map(\"aggregate_id\") @db.Uuid\n  payload     Json\n  status      OutboxStatus @default(PENDING)\n  attempts    Int          @default(0)\n  availableAt DateTime     @default(now()) @map(\"available_at\")\n  lockedAt    DateTime?    @map(\"locked_at\")\n  lockedBy    String?      @map(\"locked_by\") @db.VarChar(150)\n  publishedAt DateTime?    @map(\"published_at\")\n  lastError   String?      @map(\"last_error\") @db.Text\n  createdAt   DateTime     @default(now()) @map(\"created_at\")\n  updatedAt   DateTime     @updatedAt @map(\"updated_at\")\n\n  @@index([status, availableAt, createdAt])\n  @@index([lockedAt])\n  @@map(\"outbox_messages\")\n}\n",
+src/generated/prisma/internal/class.ts:35:config.runtimeDataModel = JSON.parse("{\"models\":{\"User\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"email\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"normalizedEmail\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"normalized_email\"},{\"name\":\"passwordHash\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"password_hash\"},{\"name\":\"status\",\"kind\":\"enum\",\"type\":\"UserStatus\"},{\"name\":\"emailVerified\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"email_verified\"},{\"name\":\"failedLoginAttempts\",\"kind\":\"scalar\",\"type\":\"Int\",\"dbName\":\"failed_login_attempts\"},{\"name\":\"lockedUntil\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"locked_until\"},{\"name\":\"passwordChangedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"password_changed_at\"},{\"name\":\"lastLoginAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"last_login_at\"},{\"name\":\"version\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"deletedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"deleted_at\"},{\"name\":\"profile\",\"kind\":\"object\",\"type\":\"UserProfile\",\"relationName\":\"UserToUserProfile\"},{\"name\":\"userRoles\",\"kind\":\"object\",\"type\":\"UserRole\",\"relationName\":\"UserToUserRole\"},{\"name\":\"sessions\",\"kind\":\"object\",\"type\":\"Session\",\"relationName\":\"SessionToUser\"},{\"name\":\"devices\",\"kind\":\"object\",\"type\":\"Device\",\"relationName\":\"DeviceToUser\"},{\"name\":\"emailVerificationTokens\",\"kind\":\"object\",\"type\":\"EmailVerificationToken\",\"relationName\":\"EmailVerificationTokenToUser\"},{\"name\":\"passwordResetTokens\",\"kind\":\"object\",\"type\":\"PasswordResetToken\",\"relationName\":\"PasswordResetTokenToUser\"},{\"name\":\"auditLogs\",\"kind\":\"object\",\"type\":\"AuditLog\",\"relationName\":\"AuditLogToUser\"},{\"name\":\"apiKeys\",\"kind\":\"object\",\"type\":\"ApiKey\",\"relationName\":\"ApiKeyToUser\"},{\"name\":\"oauthAccounts\",\"kind\":\"object\",\"type\":\"OAuthAccount\",\"relationName\":\"OAuthAccountToUser\"}],\"dbName\":\"users\"},\"UserProfile\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_id\"},{\"name\":\"firstName\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"first_name\"},{\"name\":\"lastName\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"last_name\"},{\"name\":\"displayName\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"display_name\"},{\"name\":\"phoneNumber\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"phone_number\"},{\"name\":\"locale\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"timezone\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"avatarUrl\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"avatar_url\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"UserToUserProfile\"}],\"dbName\":\"user_profiles\"},\"Application\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"code\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"name\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"description\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"isActive\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"is_active\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"roles\",\"kind\":\"object\",\"type\":\"Role\",\"relationName\":\"ApplicationToRole\"},{\"name\":\"permissions\",\"kind\":\"object\",\"type\":\"Permission\",\"relationName\":\"ApplicationToPermission\"},{\"name\":\"sessions\",\"kind\":\"object\",\"type\":\"Session\",\"relationName\":\"ApplicationToSession\"},{\"name\":\"auditLogs\",\"kind\":\"object\",\"type\":\"AuditLog\",\"relationName\":\"ApplicationToAuditLog\"},{\"name\":\"apiKeys\",\"kind\":\"object\",\"type\":\"ApiKey\",\"relationName\":\"ApiKeyToApplication\"},{\"name\":\"oauthClients\",\"kind\":\"object\",\"type\":\"OAuthClient\",\"relationName\":\"ApplicationToOAuthClient\"}],\"dbName\":\"applications\"},\"Role\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"applicationId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"application_id\"},{\"name\":\"code\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"name\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"description\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"isSystem\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"is_system\"},{\"name\":\"isActive\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"is_active\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"application\",\"kind\":\"object\",\"type\":\"Application\",\"relationName\":\"ApplicationToRole\"},{\"name\":\"userRoles\",\"kind\":\"object\",\"type\":\"UserRole\",\"relationName\":\"RoleToUserRole\"},{\"name\":\"rolePermissions\",\"kind\":\"object\",\"type\":\"RolePermission\",\"relationName\":\"RoleToRolePermission\"}],\"dbName\":\"roles\"},\"Permission\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"applicationId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"application_id\"},{\"name\":\"code\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"name\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"description\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"resource\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"action\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"isActive\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"is_active\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"application\",\"kind\":\"object\",\"type\":\"Application\",\"relationName\":\"ApplicationToPermission\"},{\"name\":\"rolePermissions\",\"kind\":\"object\",\"type\":\"RolePermission\",\"relationName\":\"PermissionToRolePermission\"}],\"dbName\":\"permissions\"},\"UserRole\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_id\"},{\"name\":\"roleId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"role_id\"},{\"name\":\"assignedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"assigned_at\"},{\"name\":\"assignedById\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"assigned_by_id\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"expires_at\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"UserToUserRole\"},{\"name\":\"role\",\"kind\":\"object\",\"type\":\"Role\",\"relationName\":\"RoleToUserRole\"}],\"dbName\":\"user_roles\"},\"RolePermission\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"roleId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"role_id\"},{\"name\":\"permissionId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"permission_id\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"role\",\"kind\":\"object\",\"type\":\"Role\",\"relationName\":\"RoleToRolePermission\"},{\"name\":\"permission\",\"kind\":\"object\",\"type\":\"Permission\",\"relationName\":\"PermissionToRolePermission\"}],\"dbName\":\"role_permissions\"},\"Device\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_id\"},{\"name\":\"fingerprintHash\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"fingerprint_hash\"},{\"name\":\"deviceName\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"device_name\"},{\"name\":\"deviceType\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"device_type\"},{\"name\":\"operatingSystem\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"operating_system\"},{\"name\":\"browser\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"trusted\",\"kind\":\"scalar\",\"type\":\"Boolean\"},{\"name\":\"trustedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"trusted_at\"},{\"name\":\"lastSeenAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"last_seen_at\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"DeviceToUser\"},{\"name\":\"sessions\",\"kind\":\"object\",\"type\":\"Session\",\"relationName\":\"DeviceToSession\"}],\"dbName\":\"devices\"},\"Session\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_id\"},{\"name\":\"applicationId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"application_id\"},{\"name\":\"deviceId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"device_id\"},{\"name\":\"status\",\"kind\":\"enum\",\"type\":\"SessionStatus\"},{\"name\":\"ipAddress\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"ip_address\"},{\"name\":\"userAgent\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_agent\"},{\"name\":\"lastActivityAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"last_activity_at\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"expires_at\"},{\"name\":\"revokedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"revoked_at\"},{\"name\":\"revokeReason\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"revoke_reason\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"SessionToUser\"},{\"name\":\"application\",\"kind\":\"object\",\"type\":\"Application\",\"relationName\":\"ApplicationToSession\"},{\"name\":\"device\",\"kind\":\"object\",\"type\":\"Device\",\"relationName\":\"DeviceToSession\"},{\"name\":\"refreshTokens\",\"kind\":\"object\",\"type\":\"RefreshToken\",\"relationName\":\"RefreshTokenToSession\"}],\"dbName\":\"sessions\"},\"RefreshToken\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"sessionId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"session_id\"},{\"name\":\"familyId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"family_id\"},{\"name\":\"tokenHash\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"token_hash\"},{\"name\":\"jti\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"expires_at\"},{\"name\":\"usedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"used_at\"},{\"name\":\"revokedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"revoked_at\"},{\"name\":\"replacedByTokenId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"replaced_by_token_id\"},{\"name\":\"revokeReason\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"revoke_reason\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"session\",\"kind\":\"object\",\"type\":\"Session\",\"relationName\":\"RefreshTokenToSession\"},{\"name\":\"replacedByToken\",\"kind\":\"object\",\"type\":\"RefreshToken\",\"relationName\":\"RefreshTokenRotation\"},{\"name\":\"replacesToken\",\"kind\":\"object\",\"type\":\"RefreshToken\",\"relationName\":\"RefreshTokenRotation\"}],\"dbName\":\"refresh_tokens\"},\"EmailVerificationToken\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_id\"},{\"name\":\"tokenHash\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"token_hash\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"expires_at\"},{\"name\":\"usedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"used_at\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"EmailVerificationTokenToUser\"}],\"dbName\":\"email_verification_tokens\"},\"PasswordResetToken\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_id\"},{\"name\":\"tokenHash\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"token_hash\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"expires_at\"},{\"name\":\"usedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"used_at\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"PasswordResetTokenToUser\"}],\"dbName\":\"password_reset_tokens\"},\"TokenBlacklist\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"jti\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"tokenType\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"token_type\"},{\"name\":\"reason\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"expires_at\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"}],\"dbName\":\"token_blacklist\"},\"AuditLog\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"applicationId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"application_id\"},{\"name\":\"actorUserId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"actor_user_id\"},{\"name\":\"action\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"resourceType\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"resource_type\"},{\"name\":\"resourceId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"resource_id\"},{\"name\":\"outcome\",\"kind\":\"enum\",\"type\":\"AuditOutcome\"},{\"name\":\"ipAddress\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"ip_address\"},{\"name\":\"userAgent\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_agent\"},{\"name\":\"requestId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"request_id\"},{\"name\":\"metadata\",\"kind\":\"scalar\",\"type\":\"Json\"},{\"name\":\"errorMessage\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"error_message\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"application\",\"kind\":\"object\",\"type\":\"Application\",\"relationName\":\"ApplicationToAuditLog\"},{\"name\":\"actorUser\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"AuditLogToUser\"}],\"dbName\":\"audit_logs\"},\"ApiKey\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"applicationId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"application_id\"},{\"name\":\"ownerUserId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"owner_user_id\"},{\"name\":\"name\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"keyPrefix\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"key_prefix\"},{\"name\":\"keyHash\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"key_hash\"},{\"name\":\"status\",\"kind\":\"enum\",\"type\":\"ApiKeyStatus\"},{\"name\":\"scopes\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"lastUsedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"last_used_at\"},{\"name\":\"expiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"expires_at\"},{\"name\":\"revokedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"revoked_at\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"application\",\"kind\":\"object\",\"type\":\"Application\",\"relationName\":\"ApiKeyToApplication\"},{\"name\":\"ownerUser\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"ApiKeyToUser\"}],\"dbName\":\"api_keys\"},\"OAuthClient\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"applicationId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"application_id\"},{\"name\":\"clientId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"client_id\"},{\"name\":\"clientSecretHash\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"client_secret_hash\"},{\"name\":\"name\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"redirectUris\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"redirect_uris\"},{\"name\":\"allowedScopes\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"allowed_scopes\"},{\"name\":\"isActive\",\"kind\":\"scalar\",\"type\":\"Boolean\",\"dbName\":\"is_active\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"application\",\"kind\":\"object\",\"type\":\"Application\",\"relationName\":\"ApplicationToOAuthClient\"}],\"dbName\":\"oauth_clients\"},\"OAuthAccount\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"userId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"user_id\"},{\"name\":\"provider\",\"kind\":\"enum\",\"type\":\"OAuthProvider\"},{\"name\":\"providerAccountId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"provider_account_id\"},{\"name\":\"accessTokenEncrypted\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"access_token_encrypted\"},{\"name\":\"refreshTokenEncrypted\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"refresh_token_encrypted\"},{\"name\":\"tokenExpiresAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"token_expires_at\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"},{\"name\":\"user\",\"kind\":\"object\",\"type\":\"User\",\"relationName\":\"OAuthAccountToUser\"}],\"dbName\":\"oauth_accounts\"},\"OutboxMessage\":{\"fields\":[{\"name\":\"id\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"topic\",\"kind\":\"scalar\",\"type\":\"String\"},{\"name\":\"eventType\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"event_type\"},{\"name\":\"aggregateId\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"aggregate_id\"},{\"name\":\"payload\",\"kind\":\"scalar\",\"type\":\"Json\"},{\"name\":\"status\",\"kind\":\"enum\",\"type\":\"OutboxStatus\"},{\"name\":\"attempts\",\"kind\":\"scalar\",\"type\":\"Int\"},{\"name\":\"availableAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"available_at\"},{\"name\":\"lockedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"locked_at\"},{\"name\":\"lockedBy\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"locked_by\"},{\"name\":\"publishedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"published_at\"},{\"name\":\"lastError\",\"kind\":\"scalar\",\"type\":\"String\",\"dbName\":\"last_error\"},{\"name\":\"createdAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"created_at\"},{\"name\":\"updatedAt\",\"kind\":\"scalar\",\"type\":\"DateTime\",\"dbName\":\"updated_at\"}],\"dbName\":\"outbox_messages\"}},\"enums\":{},\"types\":{}}")
+src/generated/prisma/internal/class.ts:37:  strings: JSON.parse("[\"where\",\"user\",\"profile\",\"orderBy\",\"cursor\",\"roles\",\"application\",\"role\",\"permission\",\"rolePermissions\",\"_count\",\"permissions\",\"sessions\",\"device\",\"session\",\"replacedByToken\",\"replacesToken\",\"refreshTokens\",\"actorUser\",\"auditLogs\",\"ownerUser\",\"apiKeys\",\"oauthClients\",\"userRoles\",\"devices\",\"emailVerificationTokens\",\"passwordResetTokens\",\"oauthAccounts\",\"User.findUnique\",\"User.findUniqueOrThrow\",\"User.findFirst\",\"User.findFirstOrThrow\",\"User.findMany\",\"data\",\"User.createOne\",\"User.createMany\",\"User.createManyAndReturn\",\"User.updateOne\",\"User.updateMany\",\"User.updateManyAndReturn\",\"create\",\"update\",\"User.upsertOne\",\"User.deleteOne\",\"User.deleteMany\",\"having\",\"_avg\",\"_sum\",\"_min\",\"_max\",\"User.groupBy\",\"User.aggregate\",\"UserProfile.findUnique\",\"UserProfile.findUniqueOrThrow\",\"UserProfile.findFirst\",\"UserProfile.findFirstOrThrow\",\"UserProfile.findMany\",\"UserProfile.createOne\",\"UserProfile.createMany\",\"UserProfile.createManyAndReturn\",\"UserProfile.updateOne\",\"UserProfile.updateMany\",\"UserProfile.updateManyAndReturn\",\"UserProfile.upsertOne\",\"UserProfile.deleteOne\",\"UserProfile.deleteMany\",\"UserProfile.groupBy\",\"UserProfile.aggregate\",\"Application.findUnique\",\"Application.findUniqueOrThrow\",\"Application.findFirst\",\"Application.findFirstOrThrow\",\"Application.findMany\",\"Application.createOne\",\"Application.createMany\",\"Application.createManyAndReturn\",\"Application.updateOne\",\"Application.updateMany\",\"Application.updateManyAndReturn\",\"Application.upsertOne\",\"Application.deleteOne\",\"Application.deleteMany\",\"Application.groupBy\",\"Application.aggregate\",\"Role.findUnique\",\"Role.findUniqueOrThrow\",\"Role.findFirst\",\"Role.findFirstOrThrow\",\"Role.findMany\",\"Role.createOne\",\"Role.createMany\",\"Role.createManyAndReturn\",\"Role.updateOne\",\"Role.updateMany\",\"Role.updateManyAndReturn\",\"Role.upsertOne\",\"Role.deleteOne\",\"Role.deleteMany\",\"Role.groupBy\",\"Role.aggregate\",\"Permission.findUnique\",\"Permission.findUniqueOrThrow\",\"Permission.findFirst\",\"Permission.findFirstOrThrow\",\"Permission.findMany\",\"Permission.createOne\",\"Permission.createMany\",\"Permission.createManyAndReturn\",\"Permission.updateOne\",\"Permission.updateMany\",\"Permission.updateManyAndReturn\",\"Permission.upsertOne\",\"Permission.deleteOne\",\"Permission.deleteMany\",\"Permission.groupBy\",\"Permission.aggregate\",\"UserRole.findUnique\",\"UserRole.findUniqueOrThrow\",\"UserRole.findFirst\",\"UserRole.findFirstOrThrow\",\"UserRole.findMany\",\"UserRole.createOne\",\"UserRole.createMany\",\"UserRole.createManyAndReturn\",\"UserRole.updateOne\",\"UserRole.updateMany\",\"UserRole.updateManyAndReturn\",\"UserRole.upsertOne\",\"UserRole.deleteOne\",\"UserRole.deleteMany\",\"UserRole.groupBy\",\"UserRole.aggregate\",\"RolePermission.findUnique\",\"RolePermission.findUniqueOrThrow\",\"RolePermission.findFirst\",\"RolePermission.findFirstOrThrow\",\"RolePermission.findMany\",\"RolePermission.createOne\",\"RolePermission.createMany\",\"RolePermission.createManyAndReturn\",\"RolePermission.updateOne\",\"RolePermission.updateMany\",\"RolePermission.updateManyAndReturn\",\"RolePermission.upsertOne\",\"RolePermission.deleteOne\",\"RolePermission.deleteMany\",\"RolePermission.groupBy\",\"RolePermission.aggregate\",\"Device.findUnique\",\"Device.findUniqueOrThrow\",\"Device.findFirst\",\"Device.findFirstOrThrow\",\"Device.findMany\",\"Device.createOne\",\"Device.createMany\",\"Device.createManyAndReturn\",\"Device.updateOne\",\"Device.updateMany\",\"Device.updateManyAndReturn\",\"Device.upsertOne\",\"Device.deleteOne\",\"Device.deleteMany\",\"Device.groupBy\",\"Device.aggregate\",\"Session.findUnique\",\"Session.findUniqueOrThrow\",\"Session.findFirst\",\"Session.findFirstOrThrow\",\"Session.findMany\",\"Session.createOne\",\"Session.createMany\",\"Session.createManyAndReturn\",\"Session.updateOne\",\"Session.updateMany\",\"Session.updateManyAndReturn\",\"Session.upsertOne\",\"Session.deleteOne\",\"Session.deleteMany\",\"Session.groupBy\",\"Session.aggregate\",\"RefreshToken.findUnique\",\"RefreshToken.findUniqueOrThrow\",\"RefreshToken.findFirst\",\"RefreshToken.findFirstOrThrow\",\"RefreshToken.findMany\",\"RefreshToken.createOne\",\"RefreshToken.createMany\",\"RefreshToken.createManyAndReturn\",\"RefreshToken.updateOne\",\"RefreshToken.updateMany\",\"RefreshToken.updateManyAndReturn\",\"RefreshToken.upsertOne\",\"RefreshToken.deleteOne\",\"RefreshToken.deleteMany\",\"RefreshToken.groupBy\",\"RefreshToken.aggregate\",\"EmailVerificationToken.findUnique\",\"EmailVerificationToken.findUniqueOrThrow\",\"EmailVerificationToken.findFirst\",\"EmailVerificationToken.findFirstOrThrow\",\"EmailVerificationToken.findMany\",\"EmailVerificationToken.createOne\",\"EmailVerificationToken.createMany\",\"EmailVerificationToken.createManyAndReturn\",\"EmailVerificationToken.updateOne\",\"EmailVerificationToken.updateMany\",\"EmailVerificationToken.updateManyAndReturn\",\"EmailVerificationToken.upsertOne\",\"EmailVerificationToken.deleteOne\",\"EmailVerificationToken.deleteMany\",\"EmailVerificationToken.groupBy\",\"EmailVerificationToken.aggregate\",\"PasswordResetToken.findUnique\",\"PasswordResetToken.findUniqueOrThrow\",\"PasswordResetToken.findFirst\",\"PasswordResetToken.findFirstOrThrow\",\"PasswordResetToken.findMany\",\"PasswordResetToken.createOne\",\"PasswordResetToken.createMany\",\"PasswordResetToken.createManyAndReturn\",\"PasswordResetToken.updateOne\",\"PasswordResetToken.updateMany\",\"PasswordResetToken.updateManyAndReturn\",\"PasswordResetToken.upsertOne\",\"PasswordResetToken.deleteOne\",\"PasswordResetToken.deleteMany\",\"PasswordResetToken.groupBy\",\"PasswordResetToken.aggregate\",\"TokenBlacklist.findUnique\",\"TokenBlacklist.findUniqueOrThrow\",\"TokenBlacklist.findFirst\",\"TokenBlacklist.findFirstOrThrow\",\"TokenBlacklist.findMany\",\"TokenBlacklist.createOne\",\"TokenBlacklist.createMany\",\"TokenBlacklist.createManyAndReturn\",\"TokenBlacklist.updateOne\",\"TokenBlacklist.updateMany\",\"TokenBlacklist.updateManyAndReturn\",\"TokenBlacklist.upsertOne\",\"TokenBlacklist.deleteOne\",\"TokenBlacklist.deleteMany\",\"TokenBlacklist.groupBy\",\"TokenBlacklist.aggregate\",\"AuditLog.findUnique\",\"AuditLog.findUniqueOrThrow\",\"AuditLog.findFirst\",\"AuditLog.findFirstOrThrow\",\"AuditLog.findMany\",\"AuditLog.createOne\",\"AuditLog.createMany\",\"AuditLog.createManyAndReturn\",\"AuditLog.updateOne\",\"AuditLog.updateMany\",\"AuditLog.updateManyAndReturn\",\"AuditLog.upsertOne\",\"AuditLog.deleteOne\",\"AuditLog.deleteMany\",\"AuditLog.groupBy\",\"AuditLog.aggregate\",\"ApiKey.findUnique\",\"ApiKey.findUniqueOrThrow\",\"ApiKey.findFirst\",\"ApiKey.findFirstOrThrow\",\"ApiKey.findMany\",\"ApiKey.createOne\",\"ApiKey.createMany\",\"ApiKey.createManyAndReturn\",\"ApiKey.updateOne\",\"ApiKey.updateMany\",\"ApiKey.updateManyAndReturn\",\"ApiKey.upsertOne\",\"ApiKey.deleteOne\",\"ApiKey.deleteMany\",\"ApiKey.groupBy\",\"ApiKey.aggregate\",\"OAuthClient.findUnique\",\"OAuthClient.findUniqueOrThrow\",\"OAuthClient.findFirst\",\"OAuthClient.findFirstOrThrow\",\"OAuthClient.findMany\",\"OAuthClient.createOne\",\"OAuthClient.createMany\",\"OAuthClient.createManyAndReturn\",\"OAuthClient.updateOne\",\"OAuthClient.updateMany\",\"OAuthClient.updateManyAndReturn\",\"OAuthClient.upsertOne\",\"OAuthClient.deleteOne\",\"OAuthClient.deleteMany\",\"OAuthClient.groupBy\",\"OAuthClient.aggregate\",\"OAuthAccount.findUnique\",\"OAuthAccount.findUniqueOrThrow\",\"OAuthAccount.findFirst\",\"OAuthAccount.findFirstOrThrow\",\"OAuthAccount.findMany\",\"OAuthAccount.createOne\",\"OAuthAccount.createMany\",\"OAuthAccount.createManyAndReturn\",\"OAuthAccount.updateOne\",\"OAuthAccount.updateMany\",\"OAuthAccount.updateManyAndReturn\",\"OAuthAccount.upsertOne\",\"OAuthAccount.deleteOne\",\"OAuthAccount.deleteMany\",\"OAuthAccount.groupBy\",\"OAuthAccount.aggregate\",\"OutboxMessage.findUnique\",\"OutboxMessage.findUniqueOrThrow\",\"OutboxMessage.findFirst\",\"OutboxMessage.findFirstOrThrow\",\"OutboxMessage.findMany\",\"OutboxMessage.createOne\",\"OutboxMessage.createMany\",\"OutboxMessage.createManyAndReturn\",\"OutboxMessage.updateOne\",\"OutboxMessage.updateMany\",\"OutboxMessage.updateManyAndReturn\",\"OutboxMessage.upsertOne\",\"OutboxMessage.deleteOne\",\"OutboxMessage.deleteMany\",\"OutboxMessage.groupBy\",\"OutboxMessage.aggregate\",\"AND\",\"OR\",\"NOT\",\"id\",\"topic\",\"eventType\",\"aggregateId\",\"payload\",\"OutboxStatus\",\"status\",\"attempts\",\"availableAt\",\"lockedAt\",\"lockedBy\",\"publishedAt\",\"lastError\",\"createdAt\",\"updatedAt\",\"equals\",\"in\",\"notIn\",\"lt\",\"lte\",\"gt\",\"gte\",\"contains\",\"startsWith\",\"endsWith\",\"not\",\"string_contains\",\"string_starts_with\",\"string_ends_with\",\"array_starts_with\",\"array_ends_with\",\"array_contains\",\"userId\",\"OAuthProvider\",\"provider\",\"providerAccountId\",\"accessTokenEncrypted\",\"refreshTokenEncrypted\",\"tokenExpiresAt\",\"applicationId\",\"clientId\",\"clientSecretHash\",\"name\",\"redirectUris\",\"allowedScopes\",\"isActive\",\"has\",\"hasEvery\",\"hasSome\",\"ownerUserId\",\"keyPrefix\",\"keyHash\",\"ApiKeyStatus\",\"scopes\",\"lastUsedAt\",\"expiresAt\",\"revokedAt\",\"actorUserId\",\"action\",\"resourceType\",\"resourceId\",\"AuditOutcome\",\"outcome\",\"ipAddress\",\"userAgent\",\"requestId\",\"metadata\",\"errorMessage\",\"jti\",\"tokenType\",\"reason\",\"tokenHash\",\"usedAt\",\"sessionId\",\"familyId\",\"replacedByTokenId\",\"revokeReason\",\"deviceId\",\"SessionStatus\",\"lastActivityAt\",\"fingerprintHash\",\"deviceName\",\"deviceType\",\"operatingSystem\",\"browser\",\"trusted\",\"trustedAt\",\"lastSeenAt\",\"roleId\",\"permissionId\",\"assignedAt\",\"assignedById\",\"code\",\"description\",\"resource\",\"isSystem\",\"every\",\"some\",\"none\",\"firstName\",\"lastName\",\"displayName\",\"phoneNumber\",\"locale\",\"timezone\",\"avatarUrl\",\"email\",\"normalizedEmail\",\"passwordHash\",\"UserStatus\",\"emailVerified\",\"failedLoginAttempts\",\"lockedUntil\",\"passwordChangedAt\",\"lastLoginAt\",\"version\",\"deletedAt\",\"provider_providerAccountId\",\"userId_fingerprintHash\",\"roleId_permissionId\",\"applicationId_code\",\"userId_roleId\",\"is\",\"isNot\",\"connectOrCreate\",\"upsert\",\"disconnect\",\"delete\",\"connect\",\"createMany\",\"set\",\"updateMany\",\"deleteMany\",\"push\",\"increment\",\"decrement\",\"multiply\",\"divide\"]"),
+src/generated/prisma/internal/prismaNamespace.ts:1802:  failedLoginAttempts: 'failedLoginAttempts',
+src/generated/prisma/internal/prismaNamespaceBrowser.ts:97:  failedLoginAttempts: 'failedLoginAttempts',
+src/generated/prisma/models/User.ts:30:  failedLoginAttempts: number | null
+src/generated/prisma/models/User.ts:35:  failedLoginAttempts: number | null
+src/generated/prisma/models/User.ts:46:  failedLoginAttempts: number | null
+src/generated/prisma/models/User.ts:63:  failedLoginAttempts: number | null
+src/generated/prisma/models/User.ts:80:  failedLoginAttempts: number
+src/generated/prisma/models/User.ts:93:  failedLoginAttempts?: true
+src/generated/prisma/models/User.ts:98:  failedLoginAttempts?: true
+src/generated/prisma/models/User.ts:109:  failedLoginAttempts?: true
+src/generated/prisma/models/User.ts:126:  failedLoginAttempts?: true
+src/generated/prisma/models/User.ts:143:  failedLoginAttempts?: true
+src/generated/prisma/models/User.ts:247:  failedLoginAttempts: number
+src/generated/prisma/models/User.ts:287:  failedLoginAttempts?: Prisma.IntFilter<"User"> | number
+src/generated/prisma/models/User.ts:313:  failedLoginAttempts?: Prisma.SortOrder
+src/generated/prisma/models/User.ts:342:  failedLoginAttempts?: Prisma.IntFilter<"User"> | number
+src/generated/prisma/models/User.ts:368:  failedLoginAttempts?: Prisma.SortOrder
+src/generated/prisma/models/User.ts:393:  failedLoginAttempts?: Prisma.IntWithAggregatesFilter<"User"> | number
+src/generated/prisma/models/User.ts:410:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:436:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:462:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:488:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:514:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:531:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:548:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:565:  failedLoginAttempts?: Prisma.SortOrder
+src/generated/prisma/models/User.ts:576:  failedLoginAttempts?: Prisma.SortOrder
+src/generated/prisma/models/User.ts:587:  failedLoginAttempts?: Prisma.SortOrder
+src/generated/prisma/models/User.ts:604:  failedLoginAttempts?: Prisma.SortOrder
+src/generated/prisma/models/User.ts:615:  failedLoginAttempts?: Prisma.SortOrder
+src/generated/prisma/models/User.ts:794:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:819:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:860:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:885:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:910:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:935:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:976:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1001:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1026:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1051:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1092:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1117:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1142:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1167:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1208:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1233:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1258:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1283:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1324:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1349:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1374:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1399:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1440:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1465:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1490:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1515:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1556:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1581:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1606:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1631:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1672:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1697:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1722:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1747:  failedLoginAttempts?: number
+src/generated/prisma/models/User.ts:1788:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1813:  failedLoginAttempts?: Prisma.IntFieldUpdateOperationsInput | number
+src/generated/prisma/models/User.ts:1932:  failedLoginAttempts?: boolean
+src/generated/prisma/models/User.ts:1959:  failedLoginAttempts?: boolean
+src/generated/prisma/models/User.ts:1976:  failedLoginAttempts?: boolean
+src/generated/prisma/models/User.ts:1993:  failedLoginAttempts?: boolean
+src/generated/prisma/models/User.ts:2003:export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "normalizedEmail" | "passwordHash" | "status" | "emailVerified" | "failedLoginAttempts" | "lockedUntil" | "passwordChangedAt" | "lastLoginAt" | "version" | "createdAt" | "updatedAt" | "deletedAt", ExtArgs["result"]["user"]>
+src/generated/prisma/models/User.ts:2039:    failedLoginAttempts: number
+src/generated/prisma/models/User.ts:2485:  readonly failedLoginAttempts: Prisma.FieldRef<"User", 'Int'>
+src/infrastructure/database/mapper/prisma-user.mapper.ts:13:  failedLoginAttempts: number;
+src/infrastructure/database/mapper/prisma-user.mapper.ts:29:  failedLoginAttempts: number;
+src/infrastructure/database/mapper/prisma-user.mapper.ts:44:  failedLoginAttempts: number;
+src/infrastructure/database/mapper/prisma-user.mapper.ts:83:    failedLoginAttempts: record.failedLoginAttempts,
+src/infrastructure/database/mapper/prisma-user.mapper.ts:103:    failedLoginAttempts: state.failedLoginAttempts,
+src/infrastructure/database/mapper/prisma-user.mapper.ts:122:    failedLoginAttempts: state.failedLoginAttempts,
+src/infrastructure/database/repositories/prisma-login-session.repository.ts:33:            failedLoginAttempts: userState.failedLoginAttempts,
+src/infrastructure/database/repositories/prisma-reset-password.repository.ts:123:              failedLoginAttempts: 0,
+src/infrastructure/database/repositories/prisma-user-administration-query.repository.ts:30:  failedLoginAttempts: number;
+src/infrastructure/database/repositories/prisma-user-administration-query.repository.ts:67:    failedLoginAttempts: user.failedLoginAttempts,
+src/infrastructure/database/repositories/prisma-user-administration-query.repository.ts:83:  failedLoginAttempts: true,
+src/infrastructure/database/repositories/prisma-user.repository.ts:104:            failedLoginAttempts: userState.failedLoginAttempts,
+src/infrastructure/database/repositories/prisma-user.repository.ts:135:              failedLoginAttempts: userState.failedLoginAttempts,
+src/infrastructure/database/repositories/prisma-user.repository.ts:186:                failedLoginAttempts: userState.failedLoginAttempts,
+src/interfaces/http/modules/authentication/authentication.plugin.ts:43:import { registerAuthenticationRateLimit } from '../../rate-limit/authentication-rate-limit.plugin.js';
+src/interfaces/http/modules/authentication/authentication.routes.ts:3:import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
+src/interfaces/http/modules/authentication/authentication.routes.ts:57:        rateLimit: AUTHENTICATION_RATE_LIMITS.REGISTER,
+src/interfaces/http/modules/authentication/authentication.routes.ts:68:        rateLimit: AUTHENTICATION_RATE_LIMITS.PASSWORD_ACTION,
+src/interfaces/http/modules/authentication/authentication.routes.ts:79:        rateLimit: AUTHENTICATION_RATE_LIMITS.EMAIL_ACTION,
+src/interfaces/http/modules/authentication/forgot-password.routes.ts:3:import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
+src/interfaces/http/modules/authentication/forgot-password.routes.ts:31:        rateLimit: AUTHENTICATION_RATE_LIMITS.EMAIL_ACTION,
+src/interfaces/http/modules/authentication/login.routes.ts:3:import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
+src/interfaces/http/modules/authentication/login.routes.ts:29:        rateLimit: AUTHENTICATION_RATE_LIMITS.LOGIN,
+src/interfaces/http/modules/authentication/protected-authentication.routes.ts:28:import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
+src/interfaces/http/modules/authentication/protected-authentication.routes.ts:99:        rateLimit: AUTHENTICATION_RATE_LIMITS.PASSWORD_ACTION,
+src/interfaces/http/modules/authentication/refresh.routes.ts:3:import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
+src/interfaces/http/modules/authentication/refresh.routes.ts:29:        rateLimit: AUTHENTICATION_RATE_LIMITS.REFRESH,
+src/interfaces/http/modules/authentication/reset-password.routes.ts:3:import { AUTHENTICATION_RATE_LIMITS } from '../../rate-limit/authentication-rate-limit.js';
+src/interfaces/http/modules/authentication/reset-password.routes.ts:31:        rateLimit: AUTHENTICATION_RATE_LIMITS.PASSWORD_ACTION,
+src/interfaces/http/modules/users/user-administration.schema.ts:97:    'failedLoginAttempts',
+src/interfaces/http/modules/users/user-administration.schema.ts:128:    failedLoginAttempts: {
+src/interfaces/http/rate-limit/authentication-rate-limit.plugin.ts:1:import rateLimit from '@fastify/rate-limit';
+src/interfaces/http/rate-limit/authentication-rate-limit.plugin.ts:4:const RATE_LIMIT_MESSAGE = 'Too many requests. Please try again later';
+src/interfaces/http/rate-limit/authentication-rate-limit.plugin.ts:16:    code: 'RATE_LIMIT_EXCEEDED';
+src/interfaces/http/rate-limit/authentication-rate-limit.plugin.ts:22:  await fastify.register(rateLimit, {
+src/interfaces/http/rate-limit/authentication-rate-limit.plugin.ts:25:    nameSpace: 'authentication-rate-limit',
+src/interfaces/http/rate-limit/authentication-rate-limit.plugin.ts:39:          rateLimitMax: context.max,
+src/interfaces/http/rate-limit/authentication-rate-limit.plugin.ts:41:          rateLimit: context.ttl,
+src/interfaces/http/rate-limit/authentication-rate-limit.plugin.ts:50:          code: 'RATE_LIMIT_EXCEEDED',
+src/interfaces/http/rate-limit/authentication-rate-limit.plugin.ts:51:          message: RATE_LIMIT_MESSAGE,
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:9:export const AUTHENTICATION_RATE_LIMITS = {
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:11:    max: env.AUTH_RATE_LIMIT_LOGIN_MAX,
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:12:    timeWindow: env.AUTH_RATE_LIMIT_LOGIN_WINDOW_MS,
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:17:    max: env.AUTH_RATE_LIMIT_REGISTER_MAX,
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:18:    timeWindow: env.AUTH_RATE_LIMIT_REGISTER_WINDOW_MS,
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:23:    max: env.AUTH_RATE_LIMIT_EMAIL_MAX,
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:24:    timeWindow: env.AUTH_RATE_LIMIT_EMAIL_WINDOW_MS,
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:29:    max: env.AUTH_RATE_LIMIT_PASSWORD_MAX,
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:30:    timeWindow: env.AUTH_RATE_LIMIT_PASSWORD_WINDOW_MS,
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:35:    max: env.AUTH_RATE_LIMIT_REFRESH_MAX,
+src/interfaces/http/rate-limit/authentication-rate-limit.ts:36:    timeWindow: env.AUTH_RATE_LIMIT_REFRESH_WINDOW_MS,
+src/shared/config/env.ts:120:  AUTH_RATE_LIMIT_LOGIN_MAX: z.coerce.number().int().positive().max(100).default(5),
+src/shared/config/env.ts:122:  AUTH_RATE_LIMIT_LOGIN_WINDOW_MS: z.coerce
+src/shared/config/env.ts:129:  AUTH_RATE_LIMIT_REGISTER_MAX: z.coerce.number().int().positive().max(100).default(5),
+src/shared/config/env.ts:131:  AUTH_RATE_LIMIT_REGISTER_WINDOW_MS: z.coerce
+src/shared/config/env.ts:138:  AUTH_RATE_LIMIT_EMAIL_MAX: z.coerce.number().int().positive().max(100).default(3),
+src/shared/config/env.ts:140:  AUTH_RATE_LIMIT_EMAIL_WINDOW_MS: z.coerce
+src/shared/config/env.ts:147:  AUTH_RATE_LIMIT_PASSWORD_MAX: z.coerce.number().int().positive().max(100).default(5),
+src/shared/config/env.ts:149:  AUTH_RATE_LIMIT_PASSWORD_WINDOW_MS: z.coerce
+src/shared/config/env.ts:156:  AUTH_RATE_LIMIT_REFRESH_MAX: z.coerce.number().int().positive().max(1_000).default(20),
+src/shared/config/env.ts:158:  AUTH_RATE_LIMIT_REFRESH_WINDOW_MS: z.coerce
+src/shared/errors/error-handler.ts:6:const RATE_LIMIT_ERROR_CODE = 'RATE_LIMIT_EXCEEDED';
+src/shared/errors/error-handler.ts:8:const RATE_LIMIT_MESSAGE = 'Too many requests. Please try again later';
+src/shared/errors/error-handler.ts:111:    error.code === RATE_LIMIT_ERROR_CODE ||
+src/shared/errors/error-handler.ts:112:    error.code === 'FST_ERR_RATE_LIMIT' ||
+src/shared/errors/error-handler.ts:113:    error.error?.code === RATE_LIMIT_ERROR_CODE
+src/shared/errors/error-handler.ts:162:      await reply.status(429).send(createErrorResponse(RATE_LIMIT_ERROR_CODE, RATE_LIMIT_MESSAGE));
+tests/integration/authentication/login-rate-limit.test.ts:1:import rateLimit from '@fastify/rate-limit';
+tests/integration/authentication/login-rate-limit.test.ts:53:    await application.register(rateLimit, {
+tests/integration/authentication/login-rate-limit.test.ts:62:            code: 'RATE_LIMIT_EXCEEDED',
+tests/integration/authentication/login-rate-limit.test.ts:112:        code: 'RATE_LIMIT_EXCEEDED',
+tests/integration/users/user-administration.route.test.ts:50:  failedLoginAttempts: 0,
+tests/integration/users/user-administration.route.test.ts:280:            failedLoginAttempts: 0,
+tests/integration/users/user-administration.route.test.ts:343:          failedLoginAttempts: 0,
+tests/unit/application/user-administration.use-case.test.ts:28:  failedLoginAttempts: 0,
+tests/unit/infrastructure/prisma-user.mapper.test.ts:21:      failedLoginAttempts: 0,
+tests/unit/infrastructure/prisma-user.mapper.test.ts:60:      failedLoginAttempts: 0,
+package.json:52:    "@fastify/rate-limit": "^11.1.0",
+
+=== CURRENT VERIFICATION ===
+
+> authentication-service@1.0.0 check
+> npm run typecheck && npm run lint && npm run format:check && npm run test
+
+
+> authentication-service@1.0.0 typecheck
+> npm run generate && tsc --noEmit
+
+
+> authentication-service@1.0.0 generate
+> prisma generate
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+┌─────────────────────────────────────────────────────────┐
+│  Update available 7.8.0 -> 7.9.0                        │
+│  Run the following to update                            │
+│    npm i --save-dev prisma@latest                       │
+│    npm i @prisma/client@latest                          │
+└─────────────────────────────────────────────────────────┘
+
+✔ Generated Prisma Client (7.8.0) to .\src\generated\prisma in 347ms
+
+
+> authentication-service@1.0.0 lint
+> eslint .
+

@@ -20,6 +20,16 @@ export const userParamsSchema = z
   })
   .strict();
 
+export const changeUserStatusBodySchema = z
+  .object({
+    status: z.enum(['ACTIVE', 'SUSPENDED', 'DISABLED']),
+
+    expectedVersion: z.number().int().min(1),
+  })
+  .strict();
+
+export type ChangeUserStatusBody = z.infer<typeof changeUserStatusBodySchema>;
+
 export type ListUsersQuery = z.infer<typeof listUsersQuerySchema>;
 
 export type UserParams = z.infer<typeof userParamsSchema>;
@@ -355,5 +365,153 @@ export const getUserRouteSchema = {
     401: errorResponseSchema,
     403: errorResponseSchema,
     404: errorResponseSchema,
+  },
+} as const;
+
+export const changeUserStatusRouteSchema = {
+  tags: ['Users'],
+
+  summary: 'Change a user account status',
+
+  security: [
+    {
+      bearerAuth: [],
+    },
+  ],
+
+  params: {
+    type: 'object',
+
+    additionalProperties: false,
+
+    required: ['userId'],
+
+    properties: {
+      userId: {
+        type: 'string',
+
+        format: 'uuid',
+      },
+    },
+  },
+
+  body: {
+    type: 'object',
+
+    additionalProperties: false,
+
+    required: ['status', 'expectedVersion'],
+
+    properties: {
+      status: {
+        type: 'string',
+
+        enum: ['ACTIVE', 'SUSPENDED', 'DISABLED'],
+      },
+
+      expectedVersion: {
+        type: 'integer',
+
+        minimum: 1,
+      },
+    },
+  },
+
+  response: {
+    200: {
+      type: 'object',
+
+      additionalProperties: false,
+
+      required: ['success', 'data'],
+
+      properties: {
+        success: {
+          type: 'boolean',
+
+          const: true,
+        },
+
+        data: {
+          type: 'object',
+
+          additionalProperties: false,
+
+          required: ['user'],
+
+          properties: {
+            user: {
+              type: 'object',
+
+              additionalProperties: false,
+
+              required: [
+                'id',
+                'email',
+                'previousStatus',
+                'status',
+                'version',
+                'revokedSessionCount',
+                'updatedAt',
+              ],
+
+              properties: {
+                id: {
+                  type: 'string',
+
+                  format: 'uuid',
+                },
+
+                email: {
+                  type: 'string',
+
+                  format: 'email',
+                },
+
+                previousStatus: {
+                  type: 'string',
+
+                  enum: ['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DISABLED'],
+                },
+
+                status: {
+                  type: 'string',
+
+                  enum: ['PENDING_VERIFICATION', 'ACTIVE', 'SUSPENDED', 'DISABLED'],
+                },
+
+                version: {
+                  type: 'integer',
+
+                  minimum: 1,
+                },
+
+                revokedSessionCount: {
+                  type: 'integer',
+
+                  minimum: 0,
+                },
+
+                updatedAt: {
+                  type: 'string',
+
+                  format: 'date-time',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+
+    400: errorResponseSchema,
+
+    401: errorResponseSchema,
+
+    403: errorResponseSchema,
+
+    404: errorResponseSchema,
+
+    409: errorResponseSchema,
   },
 } as const;

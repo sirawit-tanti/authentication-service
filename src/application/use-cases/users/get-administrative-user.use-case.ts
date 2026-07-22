@@ -1,4 +1,4 @@
-import { AdministrativeUserNotFoundError } from '@/application/errors/administrative-user-not-found.error.js';
+import { AdministrativeUserNotFoundError } from '@/application/errors/user-status-management.error.js';
 import type {
   AdministrativeUserRecord,
   UserAdministrationQueryRepository,
