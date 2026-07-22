@@ -1,14 +1,18 @@
 import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions } from 'fastify';
 
+import type { Metrics } from './application/ports/observability/metrics.js';
 import {
   createInfrastructureContainer,
   type InfrastructureContainer,
 } from './infrastructure/container/infrastructure-container.js';
 import { infrastructurePlugin } from './infrastructure/container/infrastructure.plugin.js';
+import { PrometheusMetrics } from './infrastructure/observability/prometheus-metrics.js';
 import { auditingPlugin } from './interfaces/http/modules/auditing/auditing.plugin.js';
 import { authenticationPlugin } from './interfaces/http/modules/authentication/authentication.plugin.js';
 import { authorizationPlugin } from './interfaces/http/modules/authorization/authorization.plugin.js';
+import { metricsRoutes } from './interfaces/http/modules/metrics/metrics.routes.js';
 import { usersPlugin } from './interfaces/http/modules/users/users.plugin.js';
+import { httpMetricsPlugin } from './interfaces/http/observability/http-metrics.plugin.js';
 import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
 import { env } from './shared/config/env.js';
@@ -21,6 +25,10 @@ export interface BuildApplicationOptions {
   registerInfrastructure?: boolean;
 
   infrastructure?: InfrastructureContainer;
+
+  metrics?: Metrics;
+
+  metricsBearerToken?: string;
 
   trustProxy?: FastifyServerOptions['trustProxy'];
 
@@ -51,20 +59,45 @@ export async function buildApplication(
 
     logController: new LogController({
       requestIdLogLabel: 'requestId',
-
       disableRequestLogging: false,
     }),
   });
 
+  const metrics =
+    options.metrics ??
+    new PrometheusMetrics({
+      serviceName: env.APP_NAME,
+    });
+
   await application.register(errorHandler);
 
   await application.register(httpSecurityPlugin);
+
+  await application.register(httpMetricsPlugin, {
+    metrics,
+  });
+
+  await application.register(metricsRoutes, {
+    metrics,
+    environment: env.NODE_ENV,
+
+    ...(options.metricsBearerToken !== undefined
+      ? {
+          bearerToken: options.metricsBearerToken,
+        }
+      : env.METRICS_BEARER_TOKEN === undefined
+        ? {}
+        : {
+            bearerToken: env.METRICS_BEARER_TOKEN,
+          }),
+  });
 
   if (options.registerInfrastructure !== false) {
     const infrastructure = options.infrastructure ?? createInfrastructureContainer();
 
     await application.register(infrastructurePlugin, {
       container: infrastructure,
+      metrics,
     });
 
     await application.register(authenticationPlugin);

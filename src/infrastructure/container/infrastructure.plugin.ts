@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 
-import type { InfrastructureContainer } from './infrastructure-container.js';
+import type { Metrics } from '@/application/ports/observability/metrics.js';
 import { env } from '@/shared/config/env.js';
 import { isCloseableResource } from './closeable-resource.js';
+import type { InfrastructureContainer } from './infrastructure-container.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -13,10 +14,20 @@ declare module 'fastify' {
 
 interface InfrastructurePluginOptions {
   container: InfrastructureContainer;
+  metrics?: Metrics;
 }
 
-function registerPrismaLogging(fastify: FastifyInstance, container: InfrastructureContainer): void {
+function registerPrismaLogging(
+  fastify: FastifyInstance,
+  container: InfrastructureContainer,
+  metrics: Metrics | undefined,
+): void {
   container.prisma.$on('query', (event) => {
+    metrics?.observeDatabaseQuery({
+      target: event.target,
+      durationSeconds: event.duration / 1_000,
+    });
+
     if (env.NODE_ENV !== 'development') {
       return;
     }
@@ -41,6 +52,8 @@ function registerPrismaLogging(fastify: FastifyInstance, container: Infrastructu
   });
 
   container.prisma.$on('error', (event) => {
+    metrics?.recordDatabaseError();
+
     fastify.log.error(
       {
         databaseMessage: event.message,
@@ -51,16 +64,26 @@ function registerPrismaLogging(fastify: FastifyInstance, container: Infrastructu
   });
 }
 
-function registerRedisLogging(fastify: FastifyInstance, container: InfrastructureContainer): void {
+function registerRedisLogging(
+  fastify: FastifyInstance,
+  container: InfrastructureContainer,
+  metrics: Metrics | undefined,
+): void {
   container.redis.on('connect', () => {
+    metrics?.setRedisConnectionState('connecting');
+
     fastify.log.debug('Redis TCP connection established');
   });
 
   container.redis.on('ready', () => {
+    metrics?.setRedisConnectionState('ready');
+
     fastify.log.debug('Redis connection is ready');
   });
 
   container.redis.on('reconnecting', (delayMilliseconds: number) => {
+    metrics?.setRedisConnectionState('reconnecting');
+
     fastify.log.warn(
       {
         delayMilliseconds,
@@ -70,14 +93,20 @@ function registerRedisLogging(fastify: FastifyInstance, container: Infrastructur
   });
 
   container.redis.on('close', () => {
+    metrics?.setRedisConnectionState('disconnected');
+
     fastify.log.warn('Redis connection closed');
   });
 
   container.redis.on('end', () => {
-    fastify.log.warn('Redis connection is retry strategy ended');
+    metrics?.setRedisConnectionState('disconnected');
+
+    fastify.log.warn('Redis connection retry strategy ended');
   });
 
   container.redis.on('error', (error: Error) => {
+    metrics?.recordRedisError();
+
     fastify.log.error(
       {
         err: error,
@@ -96,6 +125,7 @@ async function closeRedisConnection(container: InfrastructureContainer): Promise
 
   if (status === 'wait') {
     container.redis.disconnect(false);
+
     return;
   }
 
@@ -110,18 +140,24 @@ async function infrastructurePluginImplementation(
   fastify: FastifyInstance,
   options: InfrastructurePluginOptions,
 ): Promise<void> {
-  const { container } = options;
+  const { container, metrics } = options;
 
-  registerPrismaLogging(fastify, container);
-  registerRedisLogging(fastify, container);
+  registerPrismaLogging(fastify, container, metrics);
+
+  registerRedisLogging(fastify, container, metrics);
 
   try {
     await container.prisma.$connect();
+
     fastify.log.info('PostgreSQL connection established');
 
     await container.redis.connect();
     await container.redis.ping();
+
+    metrics?.setRedisConnectionState('ready');
   } catch (error: unknown) {
+    metrics?.setRedisConnectionState('disconnected');
+
     await Promise.allSettled([container.prisma.$disconnect(), closeRedisConnection(container)]);
 
     throw error;
@@ -129,7 +165,7 @@ async function infrastructurePluginImplementation(
 
   fastify.decorate('infrastructure', container);
 
-  fastify.addHook('onClose', async () => {
+  fastify.addHook('onClose', async (): Promise<void> => {
     const closeOperations: Promise<unknown>[] = [
       container.prisma.$disconnect(),
       closeRedisConnection(container),
@@ -140,6 +176,8 @@ async function infrastructurePluginImplementation(
     }
 
     const closeResults = await Promise.allSettled(closeOperations);
+
+    metrics?.setRedisConnectionState('disconnected');
 
     for (const result of closeResults) {
       if (result.status === 'rejected') {

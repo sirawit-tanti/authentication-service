@@ -181,6 +181,16 @@ const environmentSchema = z.object({
     .transform((value): boolean => value === 'true'),
 
   HTTP_HSTS_MAX_AGE_SECONDS: z.coerce.number().int().positive().max(63_072_000).default(31_536_000),
+
+  METRICS_BEARER_TOKEN: z.preprocess((value): unknown => {
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    const normalizedValue = value.trim();
+
+    return normalizedValue.length === 0 ? undefined : normalizedValue;
+  }, z.string().min(32).max(512).optional()),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);
