@@ -325,6 +325,48 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
           },
         });
 
+        await transaction.auditLog.create({
+          data: {
+            applicationId: session.applicationId,
+
+            actorUserId: user.id,
+
+            action: SECURITY_AUDIT_ACTIONS.REFRESH_TOKEN_ROTATED,
+
+            resourceType: SESSION_RESOURCE_TYPE,
+
+            resourceId: session.id,
+
+            outcome: 'SUCCESS',
+
+            createdAt: input.rotatedAt,
+
+            metadata: {
+              sessionId: session.id,
+
+              rotationType: 'STANDARD',
+            },
+
+            ...(input.requestId === undefined
+              ? {}
+              : {
+                  requestId: input.requestId,
+                }),
+
+            ...(input.ipAddress === undefined
+              ? {}
+              : {
+                  ipAddress: input.ipAddress,
+                }),
+
+            ...(input.userAgent === undefined
+              ? {}
+              : {
+                  userAgent: input.userAgent,
+                }),
+          },
+        });
+
         return {
           status: 'ROTATED',
 
