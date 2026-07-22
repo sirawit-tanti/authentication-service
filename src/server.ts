@@ -2,14 +2,27 @@ import type { FastifyInstance } from 'fastify';
 
 import { buildApplication } from './app.js';
 import { env } from './shared/config/env.js';
+import {
+  createGracefulShutdownHandler,
+  type GracefulShutdownHandler,
+} from './shared/runtime/graceful-shutdown.js';
+
+const SHUTDOWN_TIMEOUT_MILLISECONDS = 15_000;
 
 let application: FastifyInstance | undefined;
-let isShuttingDown = false;
+
+let shutdown: GracefulShutdownHandler | undefined;
 
 async function startServer(): Promise<void> {
-  application = await buildApplication();
-
   try {
+    application = await buildApplication();
+
+    shutdown = createGracefulShutdownHandler({
+      application,
+
+      timeoutMilliseconds: SHUTDOWN_TIMEOUT_MILLISECONDS,
+    });
+
     await application.listen({
       host: env.APP_HOST,
       port: env.APP_PORT,
@@ -18,48 +31,58 @@ async function startServer(): Promise<void> {
     application.log.info(
       {
         environment: env.NODE_ENV,
+
         host: env.APP_HOST,
+
         port: env.APP_PORT,
+
+        processId: process.pid,
       },
       'Authentication service started',
     );
   } catch (error: unknown) {
-    application.log.fatal({ error }, 'Failed to start authentication service');
+    const logger = application?.log ?? console;
+
+    logger.error(
+      {
+        err: error,
+      },
+      'Failed to start authentication service',
+    );
+
     process.exitCode = 1;
+
+    if (application !== undefined) {
+      try {
+        await application.close();
+      } catch (closeError: unknown) {
+        application.log.error(
+          {
+            err: closeError,
+          },
+          'Failed to close application after startup failure',
+        );
+      }
+    }
   }
 }
 
-async function shutdown(signal: NodeJS.Signals): Promise<void> {
-  if (isShuttingDown) {
+async function handleSignal(signal: 'SIGINT' | 'SIGTERM'): Promise<void> {
+  if (shutdown === undefined) {
+    process.exitCode = 0;
+
     return;
   }
 
-  isShuttingDown = true;
-
-  if (application === undefined) {
-    process.exitCode = 0;
-    return;
-  }
-
-  application.log.info({ signal }, 'Shutdown signal received');
-
-  try {
-    await application.close();
-
-    application.log.info('Authentication service stopped gracefully');
-    process.exitCode = 0;
-  } catch (error: unknown) {
-    application.log.error({ error }, 'Failed to stop authentication service gracefully');
-    process.exitCode = 1;
-  }
+  await shutdown(signal);
 }
 
 process.once('SIGINT', () => {
-  void shutdown('SIGINT');
+  void handleSignal('SIGINT');
 });
 
 process.once('SIGTERM', () => {
-  void shutdown('SIGTERM');
+  void handleSignal('SIGTERM');
 });
 
 void startServer();
