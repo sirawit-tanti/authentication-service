@@ -32,14 +32,24 @@ const FIXED_NOW = new Date('2026-07-16T00:00:00.000Z');
 
 const REFRESH_TOKEN_EXPIRES_AT = new Date('2026-08-15T00:00:00.000Z');
 
+const REQUEST_ID = 'refresh-request-id';
+
+const IP_ADDRESS = '127.0.0.1';
+
+const USER_AGENT = 'Vitest Refresh Client';
+
 class FakeRefreshSessionRepository implements RefreshSessionRepository {
   public input: RotateSessionRefreshTokenInput | null = null;
 
   public result: RotateSessionRefreshTokenResult = {
     status: 'ROTATED',
+
     userId: USER_ID,
+
     userEmail: 'sirawit@example.com',
+
     applicationId: APPLICATION_ID,
+
     sessionId: SESSION_ID,
 
     refreshTokenExpiresAt: REFRESH_TOKEN_EXPIRES_AT,
@@ -72,7 +82,9 @@ class FakeRefreshTokenService implements RefreshTokenService {
   public generate(): GeneratedRefreshToken {
     return {
       rawToken: 'new-refresh-token',
+
       tokenHash: 'new-refresh-token-hash',
+
       jti: NEW_REFRESH_TOKEN_JTI,
     };
   }
@@ -96,7 +108,9 @@ class FixedClock implements Clock {
 
 interface TestContext {
   repository: FakeRefreshSessionRepository;
+
   accessTokenService: FakeAccessTokenService;
+
   useCase: RefreshSessionUseCase;
 }
 
@@ -107,49 +121,71 @@ function createTestContext(): TestContext {
 
   const useCase = new RefreshSessionUseCase({
     repository,
+
     accessTokenService,
 
     refreshTokenService: new FakeRefreshTokenService(),
 
     idGenerator: new FixedIdGenerator(),
+
     clock: new FixedClock(),
 
     accessTokenTtlMinutes: 15,
+
     refreshTokenTtlDays: 30,
   });
 
   return {
     repository,
+
     accessTokenService,
+
     useCase,
   };
 }
 
 describe('RefreshSessionUseCase', () => {
-  it('rotates a refresh token and issues a new token pair', async () => {
+  it('rotates a refresh token and forwards audit context', async () => {
     const context = createTestContext();
 
     const result = await context.useCase.execute({
       refreshToken: 'current-refresh-token',
+
+      requestId: REQUEST_ID,
+
+      ipAddress: IP_ADDRESS,
+
+      userAgent: USER_AGENT,
     });
 
     expect(context.repository.input).toEqual({
       currentTokenHash: 'hashed:current-refresh-token',
 
       newTokenId: NEW_REFRESH_TOKEN_ID,
+
       newTokenJti: NEW_REFRESH_TOKEN_JTI,
+
       newTokenHash: 'new-refresh-token-hash',
 
       rotatedAt: FIXED_NOW,
 
       requestedTokenExpiresAt: REFRESH_TOKEN_EXPIRES_AT,
+
+      requestId: REQUEST_ID,
+
+      ipAddress: IP_ADDRESS,
+
+      userAgent: USER_AGENT,
     });
 
     expect(context.accessTokenService.createInput).toEqual({
       claims: {
         userId: USER_ID,
+
         sessionId: SESSION_ID,
+
         applicationId: APPLICATION_ID,
+
         email: 'sirawit@example.com',
       },
 
@@ -161,12 +197,37 @@ describe('RefreshSessionUseCase', () => {
 
       tokens: {
         accessToken: 'new-access-token',
+
         refreshToken: 'new-refresh-token',
+
         tokenType: 'Bearer',
+
         accessTokenExpiresInSeconds: 900,
 
         refreshTokenExpiresAt: REFRESH_TOKEN_EXPIRES_AT,
       },
+    });
+  });
+
+  it('omits unavailable audit context fields', async () => {
+    const context = createTestContext();
+
+    await context.useCase.execute({
+      refreshToken: 'current-refresh-token',
+    });
+
+    expect(context.repository.input).toEqual({
+      currentTokenHash: 'hashed:current-refresh-token',
+
+      newTokenId: NEW_REFRESH_TOKEN_ID,
+
+      newTokenJti: NEW_REFRESH_TOKEN_JTI,
+
+      newTokenHash: 'new-refresh-token-hash',
+
+      rotatedAt: FIXED_NOW,
+
+      requestedTokenExpiresAt: REFRESH_TOKEN_EXPIRES_AT,
     });
   });
 
@@ -180,6 +241,8 @@ describe('RefreshSessionUseCase', () => {
     await expect(
       context.useCase.execute({
         refreshToken: 'unknown-refresh-token',
+
+        requestId: REQUEST_ID,
       }),
     ).rejects.toBeInstanceOf(InvalidRefreshTokenError);
 
@@ -196,8 +259,22 @@ describe('RefreshSessionUseCase', () => {
     await expect(
       context.useCase.execute({
         refreshToken: 'reused-refresh-token',
+
+        requestId: REQUEST_ID,
+
+        ipAddress: IP_ADDRESS,
+
+        userAgent: USER_AGENT,
       }),
     ).rejects.toBeInstanceOf(InvalidRefreshTokenError);
+
+    expect(context.repository.input).toMatchObject({
+      requestId: REQUEST_ID,
+
+      ipAddress: IP_ADDRESS,
+
+      userAgent: USER_AGENT,
+    });
 
     expect(context.accessTokenService.createInput).toBeNull();
   });
@@ -208,6 +285,8 @@ describe('RefreshSessionUseCase', () => {
     await expect(
       context.useCase.execute({
         refreshToken: '   ',
+
+        requestId: REQUEST_ID,
       }),
     ).rejects.toBeInstanceOf(InvalidRefreshTokenError);
 

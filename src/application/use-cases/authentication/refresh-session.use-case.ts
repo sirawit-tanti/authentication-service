@@ -1,3 +1,4 @@
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
 import { InvalidRefreshTokenError } from '@/application/errors/invalid-refresh-token.error.js';
 import type { AuthenticationTokenPair } from '@/application/models/authentication-token-pair.js';
 import type { AccessTokenService } from '@/application/ports/authentication/access-token-service.js';
@@ -6,7 +7,7 @@ import type { RefreshSessionRepository } from '@/application/ports/repositories/
 import type { Clock } from '@/application/ports/system/clock.js';
 import type { IdGenerator } from '@/application/ports/system/id-generator.js';
 
-export interface RefreshSessionCommand {
+export interface RefreshSessionCommand extends AuditRequestContext {
   refreshToken: string;
 }
 
@@ -27,11 +28,17 @@ export interface RefreshSessionUseCaseDependencies {
 
 export class RefreshSessionUseCase {
   private readonly repository: RefreshSessionRepository;
+
   private readonly accessTokenService: AccessTokenService;
+
   private readonly refreshTokenService: RefreshTokenService;
+
   private readonly idGenerator: IdGenerator;
+
   private readonly clock: Clock;
+
   private readonly accessTokenExpiresInSeconds: number;
+
   private readonly refreshTokenTtlMilliseconds: number;
 
   public constructor(dependencies: RefreshSessionUseCaseDependencies) {
@@ -50,11 +57,17 @@ export class RefreshSessionUseCase {
     }
 
     this.repository = dependencies.repository;
+
     this.accessTokenService = dependencies.accessTokenService;
+
     this.refreshTokenService = dependencies.refreshTokenService;
+
     this.idGenerator = dependencies.idGenerator;
+
     this.clock = dependencies.clock;
+
     this.accessTokenExpiresInSeconds = dependencies.accessTokenTtlMinutes * 60;
+
     this.refreshTokenTtlMilliseconds = dependencies.refreshTokenTtlDays * 24 * 60 * 60 * 1_000;
   }
 
@@ -75,11 +88,34 @@ export class RefreshSessionUseCase {
 
     const rotationResult = await this.repository.rotate({
       currentTokenHash: this.refreshTokenService.hash(rawCurrentToken),
+
       newTokenId: this.idGenerator.generate(),
+
       newTokenJti: newRefreshToken.jti,
+
       newTokenHash: newRefreshToken.tokenHash,
+
       rotatedAt,
+
       requestedTokenExpiresAt,
+
+      ...(command.requestId === undefined
+        ? {}
+        : {
+            requestId: command.requestId,
+          }),
+
+      ...(command.ipAddress === undefined
+        ? {}
+        : {
+            ipAddress: command.ipAddress,
+          }),
+
+      ...(command.userAgent === undefined
+        ? {}
+        : {
+            userAgent: command.userAgent,
+          }),
     });
 
     if (rotationResult.status !== 'ROTATED') {
@@ -89,20 +125,29 @@ export class RefreshSessionUseCase {
     const accessToken = await this.accessTokenService.create({
       claims: {
         userId: rotationResult.userId,
+
         sessionId: rotationResult.sessionId,
+
         applicationId: rotationResult.applicationId,
+
         email: rotationResult.userEmail,
       },
+
       issuedAt: rotatedAt,
     });
 
     return {
       sessionId: rotationResult.sessionId,
+
       tokens: {
         accessToken,
+
         refreshToken: newRefreshToken.rawToken,
+
         tokenType: 'Bearer',
+
         accessTokenExpiresInSeconds: this.accessTokenExpiresInSeconds,
+
         refreshTokenExpiresAt: rotationResult.refreshTokenExpiresAt,
       },
     };

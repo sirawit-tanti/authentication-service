@@ -5,6 +5,7 @@ import type {
   RefreshSessionCommand,
   RefreshSessionResult,
 } from '@/application/use-cases/authentication/refresh-session.use-case.js';
+import { createRequestAuditContext } from '@/interfaces/http/auditing/request-audit-context.js';
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -24,13 +25,12 @@ interface RefreshRouteRequest {
   Body: RefreshRequestBody;
 }
 
-export function createRefreshController(
-  dependencies: RefreshControllerDependencies,
-): (request: FastifyRequest<RefreshRouteRequest>, reply: FastifyReply) => Promise<void> {
-  return async function refreshController(
-    request: FastifyRequest<RefreshRouteRequest>,
-    reply: FastifyReply,
-  ): Promise<void> {
+export function createRefreshController(dependencies: RefreshControllerDependencies): (
+  request: FastifyRequest<RefreshRouteRequest>,
+
+  reply: FastifyReply,
+) => Promise<void> {
+  return async function refreshController(request, reply): Promise<void> {
     const validationResult = refreshRequestSchema.safeParse(request.body);
 
     if (!validationResult.success) {
@@ -41,13 +41,16 @@ export function createRefreshController(
           if (field.length === 0) {
             return {
               code: issue.code,
+
               message: issue.message,
             };
           }
 
           return {
             code: issue.code,
+
             field,
+
             message: issue.message,
           };
         },
@@ -63,6 +66,8 @@ export function createRefreshController(
     try {
       const result = await dependencies.refreshSessionUseCase.execute({
         refreshToken: validationResult.data.refreshToken,
+
+        ...createRequestAuditContext(request),
       });
 
       await reply.status(200).send(createSuccessResponse(result));

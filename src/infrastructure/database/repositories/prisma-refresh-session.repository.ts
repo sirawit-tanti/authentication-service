@@ -1,3 +1,4 @@
+import { SECURITY_AUDIT_ACTIONS } from '@/application/auditing/security-audit-action.js';
 import type {
   RefreshSessionRepository,
   RotateSessionRefreshTokenInput,
@@ -6,6 +7,8 @@ import type {
 import type { ApplicationPrismaClient } from '../prisma-client.js';
 
 const REUSE_REVOKE_REASON = 'Refresh token reuse detected';
+
+const SESSION_RESOURCE_TYPE = 'SESSION';
 
 export class PrismaRefreshSessionRepository implements RefreshSessionRepository {
   private readonly prisma: ApplicationPrismaClient;
@@ -18,7 +21,7 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
     input: RotateSessionRefreshTokenInput,
   ): Promise<RotateSessionRefreshTokenResult> {
     return this.prisma.$transaction(
-      async (transaction) => {
+      async (transaction): Promise<RotateSessionRefreshTokenResult> => {
         const currentToken = await transaction.refreshToken.findUnique({
           where: {
             tokenHash: input.currentTokenHash,
@@ -40,6 +43,7 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
         }
 
         const session = currentToken.session;
+
         const user = session.user;
 
         const tokenWasPreviouslyUsed =
@@ -51,11 +55,13 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
           await transaction.refreshToken.updateMany({
             where: {
               familyId: currentToken.familyId,
+
               revokedAt: null,
             },
 
             data: {
               revokedAt: input.rotatedAt,
+
               revokeReason: REUSE_REVOKE_REASON,
             },
           });
@@ -63,14 +69,68 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
           await transaction.session.updateMany({
             where: {
               id: session.id,
+
               status: 'ACTIVE',
             },
 
             data: {
               status: 'REVOKED',
+
               revokedAt: input.rotatedAt,
+
               revokeReason: REUSE_REVOKE_REASON,
+
+              lastActivityAt: input.rotatedAt,
+
               updatedAt: input.rotatedAt,
+            },
+          });
+
+          await transaction.auditLog.create({
+            data: {
+              applicationId: session.applicationId,
+
+              actorUserId: user.id,
+
+              action: SECURITY_AUDIT_ACTIONS.REFRESH_TOKEN_REUSE_DETECTED,
+
+              resourceType: SESSION_RESOURCE_TYPE,
+
+              resourceId: session.id,
+
+              outcome: 'FAILURE',
+
+              errorMessage: REUSE_REVOKE_REASON,
+
+              createdAt: input.rotatedAt,
+
+              metadata: {
+                sessionId: session.id,
+
+                refreshTokenFamilyId: currentToken.familyId,
+
+                detectionReason: 'PREVIOUSLY_USED_TOKEN',
+
+                sessionRevoked: true,
+              },
+
+              ...(input.requestId === undefined
+                ? {}
+                : {
+                    requestId: input.requestId,
+                  }),
+
+              ...(input.ipAddress === undefined
+                ? {}
+                : {
+                    ipAddress: input.ipAddress,
+                  }),
+
+              ...(input.userAgent === undefined
+                ? {}
+                : {
+                    userAgent: input.userAgent,
+                  }),
             },
           });
 
@@ -98,11 +158,13 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
             await transaction.session.updateMany({
               where: {
                 id: session.id,
+
                 status: 'ACTIVE',
               },
 
               data: {
                 status: 'EXPIRED',
+
                 updatedAt: input.rotatedAt,
               },
             });
@@ -120,11 +182,17 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
         await transaction.refreshToken.create({
           data: {
             id: input.newTokenId,
+
             sessionId: session.id,
+
             familyId: currentToken.familyId,
+
             tokenHash: input.newTokenHash,
+
             jti: input.newTokenJti,
+
             expiresAt: refreshTokenExpiresAt,
+
             createdAt: input.rotatedAt,
           },
         });
@@ -132,13 +200,17 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
         const currentTokenUpdate = await transaction.refreshToken.updateMany({
           where: {
             id: currentToken.id,
+
             usedAt: null,
+
             revokedAt: null,
+
             replacedByTokenId: null,
           },
 
           data: {
             usedAt: input.rotatedAt,
+
             replacedByTokenId: input.newTokenId,
           },
         });
@@ -147,7 +219,9 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
           await transaction.refreshToken.deleteMany({
             where: {
               id: input.newTokenId,
+
               usedAt: null,
+
               replacedByTokenId: null,
             },
           });
@@ -155,11 +229,13 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
           await transaction.refreshToken.updateMany({
             where: {
               familyId: currentToken.familyId,
+
               revokedAt: null,
             },
 
             data: {
               revokedAt: input.rotatedAt,
+
               revokeReason: REUSE_REVOKE_REASON,
             },
           });
@@ -167,14 +243,68 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
           await transaction.session.updateMany({
             where: {
               id: session.id,
+
               status: 'ACTIVE',
             },
 
             data: {
               status: 'REVOKED',
+
               revokedAt: input.rotatedAt,
+
               revokeReason: REUSE_REVOKE_REASON,
+
+              lastActivityAt: input.rotatedAt,
+
               updatedAt: input.rotatedAt,
+            },
+          });
+
+          await transaction.auditLog.create({
+            data: {
+              applicationId: session.applicationId,
+
+              actorUserId: user.id,
+
+              action: SECURITY_AUDIT_ACTIONS.REFRESH_TOKEN_REUSE_DETECTED,
+
+              resourceType: SESSION_RESOURCE_TYPE,
+
+              resourceId: session.id,
+
+              outcome: 'FAILURE',
+
+              errorMessage: REUSE_REVOKE_REASON,
+
+              createdAt: input.rotatedAt,
+
+              metadata: {
+                sessionId: session.id,
+
+                refreshTokenFamilyId: currentToken.familyId,
+
+                detectionReason: 'CONCURRENT_ROTATION',
+
+                sessionRevoked: true,
+              },
+
+              ...(input.requestId === undefined
+                ? {}
+                : {
+                    requestId: input.requestId,
+                  }),
+
+              ...(input.ipAddress === undefined
+                ? {}
+                : {
+                    ipAddress: input.ipAddress,
+                  }),
+
+              ...(input.userAgent === undefined
+                ? {}
+                : {
+                    userAgent: input.userAgent,
+                  }),
             },
           });
 
@@ -190,6 +320,7 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
 
           data: {
             lastActivityAt: input.rotatedAt,
+
             updatedAt: input.rotatedAt,
           },
         });
@@ -198,8 +329,11 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
           status: 'ROTATED',
 
           userId: user.id,
+
           userEmail: user.email,
+
           applicationId: session.applicationId,
+
           sessionId: session.id,
 
           refreshTokenExpiresAt,
@@ -207,6 +341,7 @@ export class PrismaRefreshSessionRepository implements RefreshSessionRepository 
       },
       {
         maxWait: 2_000,
+
         timeout: 5_000,
       },
     );

@@ -1,4 +1,6 @@
-export interface RotateSessionRefreshTokenInput {
+import type { AuditRequestContext } from '@/application/auditing/audit-request-context.js';
+
+export interface RotateSessionRefreshTokenInput extends AuditRequestContext {
   currentTokenHash: string;
   newTokenId: string;
   newTokenJti: string;
