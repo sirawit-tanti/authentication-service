@@ -206,6 +206,21 @@ const environmentSchema = z.object({
 
     return normalizedValue.length === 0 ? undefined : normalizedValue;
   }, z.string().min(32).max(512).optional()),
+
+  OTEL_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value): boolean => value === 'true'),
+
+  OTEL_SERVICE_NAME: z.string().trim().min(1).default('authentication-service'),
+
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: z
+    .string()
+    .trim()
+    .pipe(z.url())
+    .default('http://localhost:4318/v1/traces'),
+
+  OTEL_TRACES_SAMPLER_RATIO: z.coerce.number().min(0).max(1).default(1),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);

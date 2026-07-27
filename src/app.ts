@@ -16,6 +16,7 @@ import { httpMetricsPlugin } from './interfaces/http/observability/http-metrics.
 import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
 import { openApiPlugin } from './interfaces/http/documentation/openapi.plugin.js';
+import { httpTracingPlugin } from './interfaces/http/observability/http-tracing.plugin.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
 import { createLoggerRedactionConfiguration } from './shared/logging/logger-redaction.js';
@@ -97,6 +98,8 @@ export async function buildApplication(
   await application.register(errorHandler);
 
   await application.register(httpSecurityPlugin);
+
+  await application.register(httpTracingPlugin);
 
   await application.register(httpMetricsPlugin, {
     metrics,

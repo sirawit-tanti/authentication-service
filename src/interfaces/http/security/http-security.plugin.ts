@@ -22,6 +22,7 @@ async function httpSecurityPluginImplementation(fastify: FastifyInstance): Promi
     allowedHeaders: ['authorization', 'content-type', 'x-request-id'],
     exposedHeaders: [
       'x-request-id',
+      'x-trace-id',
       'x-ratelimit-limit',
       'x-ratelimit-remaining',
       'x-ratelimit-reset',
