@@ -15,6 +15,7 @@ import { usersPlugin } from './interfaces/http/modules/users/users.plugin.js';
 import { httpMetricsPlugin } from './interfaces/http/observability/http-metrics.plugin.js';
 import { apiV1Routes } from './interfaces/http/routes/index.js';
 import { httpSecurityPlugin } from './interfaces/http/security/http-security.plugin.js';
+import { openApiPlugin } from './interfaces/http/documentation/openapi.plugin.js';
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
 import { createLoggerRedactionConfiguration } from './shared/logging/logger-redaction.js';
@@ -29,6 +30,10 @@ export interface BuildApplicationOptions {
   metrics?: Metrics;
 
   metricsBearerToken?: string;
+
+  swaggerEnabled?: boolean;
+
+  swaggerBearerToken?: string;
 
   trustProxy?: FastifyServerOptions['trustProxy'];
 
@@ -68,6 +73,26 @@ export async function buildApplication(
     new PrometheusMetrics({
       serviceName: env.APP_NAME,
     });
+
+  await application.register(openApiPlugin, {
+    enabled: options.swaggerEnabled ?? env.SWAGGER_ENABLED,
+
+    environment: env.NODE_ENV,
+
+    applicationName: env.APP_NAME,
+
+    applicationVersion: '1.0.0',
+
+    ...(options.swaggerBearerToken !== undefined
+      ? {
+          bearerToken: options.swaggerBearerToken,
+        }
+      : env.SWAGGER_BEARER_TOKEN === undefined
+        ? {}
+        : {
+            bearerToken: env.SWAGGER_BEARER_TOKEN,
+          }),
+  });
 
   await application.register(errorHandler);
 

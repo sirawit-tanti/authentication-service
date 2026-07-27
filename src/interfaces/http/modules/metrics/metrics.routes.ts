@@ -10,6 +10,8 @@ export interface MetricsRoutesOptions {
 }
 
 const metricsRouteSchema = {
+  hide: true,
+
   description: 'Expose Prometheus-compatible service metrics',
 
   tags: ['Operations'],

@@ -191,6 +191,21 @@ const environmentSchema = z.object({
 
     return normalizedValue.length === 0 ? undefined : normalizedValue;
   }, z.string().min(32).max(512).optional()),
+
+  SWAGGER_ENABLED: z
+    .enum(['true', 'false'])
+    .default(process.env.NODE_ENV === 'production' ? 'false' : 'true')
+    .transform((value): boolean => value === 'true'),
+
+  SWAGGER_BEARER_TOKEN: z.preprocess((value): unknown => {
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    const normalizedValue = value.trim();
+
+    return normalizedValue.length === 0 ? undefined : normalizedValue;
+  }, z.string().min(32).max(512).optional()),
 });
 
 const parsedEnvironment = environmentSchema.safeParse(process.env);
