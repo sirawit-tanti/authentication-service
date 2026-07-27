@@ -49,6 +49,17 @@ const SENSITIVE_LOG_PATHS = [
 
   'apiKey',
   'keyHash',
+
+  'job.data.password',
+  'job.data.currentPassword',
+  'job.data.newPassword',
+
+  'job.data.token',
+  'job.data.verificationToken',
+  'job.data.resetToken',
+
+  'job.data.accessToken',
+  'job.data.refreshToken',
 ] as const;
 
 export function createLoggerRedactionConfiguration(): LoggerRedactionConfiguration {
