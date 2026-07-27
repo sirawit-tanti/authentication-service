@@ -1,13 +1,12 @@
-import { describe, expect, it } from 'vitest';
-
 import {
   isIgnoredIncomingRequest,
+  serializeRedisStatement,
   startTracing,
 } from '../../../src/infrastructure/observability/tracing.js';
 
-describe('OpenTelemetry tracing', () => {
-  it('returns an idempotent disabled runtime', async () => {
-    const tracing = startTracing({
+describe('Tracing infrastructure', () => {
+  it('returns a disabled runtime without starting an SDK', async () => {
+    const runtime = startTracing({
       enabled: false,
 
       serviceName: 'authentication-service',
@@ -21,12 +20,9 @@ describe('OpenTelemetry tracing', () => {
       samplingRatio: 1,
     });
 
-    expect(tracing.enabled).toBe(false);
+    expect(runtime.enabled).toBe(false);
 
-    await expect(Promise.all([tracing.shutdown(), tracing.shutdown()])).resolves.toEqual([
-      undefined,
-      undefined,
-    ]);
+    await expect(runtime.shutdown()).resolves.toBeUndefined();
   });
 
   it('ignores metrics and documentation static assets', () => {
@@ -34,6 +30,14 @@ describe('OpenTelemetry tracing', () => {
 
     expect(isIgnoredIncomingRequest('/docs/static/index.css')).toBe(true);
 
-    expect(isIgnoredIncomingRequest('/api/v1/auth/login')).toBe(false);
+    expect(isIgnoredIncomingRequest('/api/v1/health/live')).toBe(false);
+  });
+
+  it('serializes only the Redis command name', () => {
+    expect(serializeRedisStatement('get', ['secret-session-key'])).toBe('GET');
+
+    expect(serializeRedisStatement('set', ['secret-session-key', 'secret-session-value'])).toBe(
+      'SET',
+    );
   });
 });

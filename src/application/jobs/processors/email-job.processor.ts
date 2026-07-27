@@ -1,3 +1,5 @@
+import type { EmailProvider } from '@/application/ports/email/email-provider.js';
+
 import {
   EMAIL_JOB_NAMES,
   type EmailJobDataMap,
@@ -5,7 +7,6 @@ import {
   type SendEmailVerificationJobData,
   type SendPasswordResetJobData,
 } from '../email-job.js';
-import type { EmailProvider } from '@/application/ports/email/email-provider.js';
 
 export interface EmailJobProcessorOptions {
   emailProvider: EmailProvider;
@@ -30,8 +31,11 @@ export class EmailJobProcessor {
 
   public constructor(options: EmailJobProcessorOptions) {
     this.emailProvider = options.emailProvider;
+
     this.fromAddress = options.fromAddress;
+
     this.fromName = options.fromName;
+
     this.emailVerificationBaseUrl = options.emailVerificationBaseUrl;
   }
 
@@ -39,10 +43,12 @@ export class EmailJobProcessor {
     switch (job.name) {
       case EMAIL_JOB_NAMES.SEND_EMAIL_VERIFICATION:
         await this.processEmailVerification(job.data as SendEmailVerificationJobData);
+
         return;
 
       case EMAIL_JOB_NAMES.SEND_PASSWORD_RESET:
         await this.processPasswordReset(job.data as SendPasswordResetJobData);
+
         return;
     }
   }
@@ -56,17 +62,24 @@ export class EmailJobProcessor {
 
     await this.emailProvider.send({
       to: data.email,
+
       subject: 'Verify your email address',
+
       text: [
         `Verify your email form ${this.fromName}.`,
+
         `Open this link: ${verificationUrl.toString()}`,
+
         `This link expires at ${data.expiresAt}`,
+
         `Sender: ${this.fromAddress}`,
       ].join('\n'),
 
       html: [
         `<p>Verify your email for ${this.escapeHtml(this.fromName)}.</p>`,
+
         `<p><a href="${this.escapeHtml(verificationUrl.toString())}">Verify Email</a>.</p>`,
+
         `<p>This link expires at ${this.escapeHtml(data.expiresAt)}.</p>`,
       ].join(''),
     });
@@ -77,14 +90,18 @@ export class EmailJobProcessor {
 
     await this.emailProvider.send({
       to: data.email,
+
       subject: 'Reset your password',
+
       text: [
         `Password reset token: ${data.resetToken}`,
+
         `This token expires at ${data.expiresAt}.`,
       ].join('\n'),
 
       html: [
         '<p>A password reset was requested.</p>',
+
         `<p>This token expires at ${this.escapeHtml(data.expiresAt)}.</p>`,
       ].join(''),
     });

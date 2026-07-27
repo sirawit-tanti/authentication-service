@@ -1,6 +1,10 @@
 import { type Attributes } from '@opentelemetry/api';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
+import {
+  IORedisInstrumentation,
+  type DbStatementSerializer,
+} from '@opentelemetry/instrumentation-ioredis';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { ParentBasedSampler, TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-node';
@@ -51,9 +55,22 @@ function validateOptions(options: StartTracingOptions): void {
 function createResourceAttributes(options: StartTracingOptions): Attributes {
   return {
     'service.name': options.serviceName,
+
     'service.version': options.serviceVersion,
+
     'deployment.environment.name': options.environment,
   };
+}
+
+const serializeRedisStatement: DbStatementSerializer = (commandName): string =>
+  commandName.toUpperCase();
+
+function createRedisInstrumentation(): IORedisInstrumentation {
+  return new IORedisInstrumentation({
+    requireParentSpan: true,
+
+    dbStatementSerializer: serializeRedisStatement,
+  });
 }
 
 export function startTracing(options: StartTracingOptions): TracingRuntime {
@@ -88,6 +105,8 @@ export function startTracing(options: StartTracingOptions): TracingRuntime {
           return isIgnoredIncomingRequest(request.url);
         },
       }),
+
+      createRedisInstrumentation(),
     ],
   });
 
@@ -106,4 +125,4 @@ export function startTracing(options: StartTracingOptions): TracingRuntime {
   };
 }
 
-export { isIgnoredIncomingRequest };
+export { isIgnoredIncomingRequest, serializeRedisStatement };
