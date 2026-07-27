@@ -13,6 +13,7 @@ import { startTracing } from '@/infrastructure/observability/tracing.js';
 import { createBullMqWorkerConnectionOptions } from '@/infrastructure/queue/bullmq-connection.js';
 import { createLoggerRedactionConfiguration } from '@/shared/logging/logger-redaction.js';
 import { env } from '@/shared/config/env.js';
+import { TracingEmailProvider } from '@/infrastructure/email/tracing-email.provider.js';
 
 const APPLICATION_VERSION = '1.0.0';
 
@@ -36,7 +37,13 @@ const logger = pino({
   redact: createLoggerRedactionConfiguration(),
 });
 
-const emailProvider = new DevelopmentEmailProvider(logger);
+const developmentEmailProvider = new DevelopmentEmailProvider(logger);
+
+const emailProvider = new TracingEmailProvider({
+  provider: developmentEmailProvider,
+
+  providerName: env.EMAIL_PROVIDER,
+});
 
 const processor = new EmailJobProcessor({
   emailProvider,
