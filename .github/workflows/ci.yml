@@ -1,0 +1,64 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 20
+
+    env:
+      NODE_ENV: test
+
+      DATABASE_URL: postgresql://authentication:authentication@localhost:5432/authentication
+
+      REDIS_URL: redis://localhost:6379
+
+      JWT_ACCESS_TOKEN_SECRET: ci-access-token-secret-at-least-32-characters
+      REFRESH_TOKEN_HASH_SECRET: ci-refresh-token-secret-at-least-32-characters
+      EMAIL_VERIFICATION_TOKEN_SECRET: ci-email-verification-secret-at-least-32-characters
+      PASSWORD_RESET_TOKEN_SECRET: ci-password-reset-secret-at-least-32-characters
+
+      METRICS_BEARER_TOKEN: ci-metrics-token-at-least-32-characters
+
+      OTEL_ENABLED: 'false'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run quality checks
+        run: npm run check
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run security tests
+        run: npm run test:security
