@@ -5,6 +5,7 @@ import {
   IORedisInstrumentation,
   type DbStatementSerializer,
 } from '@opentelemetry/instrumentation-ioredis';
+import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { ParentBasedSampler, TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-node';
@@ -55,9 +56,7 @@ function validateOptions(options: StartTracingOptions): void {
 function createResourceAttributes(options: StartTracingOptions): Attributes {
   return {
     'service.name': options.serviceName,
-
     'service.version': options.serviceVersion,
-
     'deployment.environment.name': options.environment,
   };
 }
@@ -68,8 +67,15 @@ const serializeRedisStatement: DbStatementSerializer = (commandName): string =>
 function createRedisInstrumentation(): IORedisInstrumentation {
   return new IORedisInstrumentation({
     requireParentSpan: true,
-
     dbStatementSerializer: serializeRedisStatement,
+  });
+}
+
+function createPostgresInstrumentation(): PgInstrumentation {
+  return new PgInstrumentation({
+    requireParentSpan: true,
+    enhancedDatabaseReporting: false,
+    addSqlCommenterCommentToQueries: false,
   });
 }
 
@@ -107,6 +113,8 @@ export function startTracing(options: StartTracingOptions): TracingRuntime {
       }),
 
       createRedisInstrumentation(),
+
+      createPostgresInstrumentation(),
     ],
   });
 
