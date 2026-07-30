@@ -11,6 +11,7 @@ import { BullMqEmailQueue } from '@/infrastructure/queue/bullmq-email.queue.js';
 import { SystemClock } from '@/infrastructure/system/system-clock.js';
 import { env } from '@/shared/config/env.js';
 import { createLoggerRedactionConfiguration } from '@/shared/logging/logger-redaction.js';
+import { createTraceLogBindings } from '@/shared/logging/trace-log-correlation.js';
 
 export interface StartOutboxWorkerRuntimeOptions {
   tracingEnabled: boolean;
@@ -37,6 +38,8 @@ export async function startOutboxWorkerRuntime(
     level: env.LOG_LEVEL,
 
     redact: createLoggerRedactionConfiguration(),
+
+    mixin: createTraceLogBindings,
   });
 
   const prisma = createPrismaClient();

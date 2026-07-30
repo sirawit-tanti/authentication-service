@@ -20,6 +20,7 @@ import { httpTracingPlugin } from './interfaces/http/observability/http-tracing.
 import { env } from './shared/config/env.js';
 import { errorHandler } from './shared/errors/error-handler.js';
 import { createLoggerRedactionConfiguration } from './shared/logging/logger-redaction.js';
+import { createTraceLogBindings } from './shared/logging/trace-log-correlation.js';
 
 export interface BuildApplicationOptions {
   logger?: FastifyServerOptions['logger'];
@@ -49,6 +50,8 @@ export async function buildApplication(
       level: env.LOG_LEVEL,
 
       redact: createLoggerRedactionConfiguration(),
+
+      mixin: createTraceLogBindings,
     },
 
     bodyLimit: options.bodyLimit ?? env.HTTP_BODY_LIMIT_BYTES,

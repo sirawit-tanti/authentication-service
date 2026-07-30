@@ -1,4 +1,4 @@
-import { SpanKind, trace } from '@opentelemetry/api';
+import { SpanKind } from '@opentelemetry/api';
 import { Worker, type Job } from 'bullmq';
 import pino from 'pino';
 
@@ -13,6 +13,7 @@ import {
 import { createBullMqWorkerConnectionOptions } from '@/infrastructure/queue/bullmq-connection.js';
 import { env } from '@/shared/config/env.js';
 import { createLoggerRedactionConfiguration } from '@/shared/logging/logger-redaction.js';
+import { createTraceLogBindings } from '@/shared/logging/trace-log-correlation.js';
 
 export interface StartEmailWorkerRuntimeOptions {
   tracingEnabled: boolean;
@@ -29,6 +30,8 @@ export async function startEmailWorkerRuntime(
     level: env.LOG_LEVEL,
 
     redact: createLoggerRedactionConfiguration(),
+
+    mixin: createTraceLogBindings,
   });
 
   const developmentEmailProvider = new DevelopmentEmailProvider(logger);
@@ -85,17 +88,11 @@ export async function startEmailWorkerRuntime(
         },
       },
       async (): Promise<void> => {
-        const spanContext = trace.getActiveSpan()?.spanContext();
-
         logger.debug(
           {
             jobId: job.id,
 
             jobName: job.name,
-
-            traceId: spanContext?.traceId,
-
-            spanId: spanContext?.spanId,
           },
           'Email job trace started',
         );
